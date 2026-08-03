@@ -1,17 +1,74 @@
 'use server'
 
-import { createClient } from '@/utils/supabase/server'
-import { createAdminClient } from '@/utils/supabase/admin'
+import { auth } from '@/auth'
+import prisma from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { ActivitySchema } from '@/lib/schemas'
 import { calculateMonthlyCounts } from '@/utils/date-utils'
 
-export async function createActivity(formData: FormData) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+// Helpers to serialize BigInts
+function serializeCategory(cat: any) {
+    if (!cat) return null;
+    return {
+        ...cat,
+        id: Number(cat.id)
+    };
+}
 
-    if (!user) throw new Error('Unauthorized')
+function serializeClassRoom(cls: any) {
+    if (!cls) return null;
+    return {
+        ...cls,
+        id: Number(cls.id)
+    };
+}
+
+function serializeBase(base: any) {
+    if (!base) return null;
+    return {
+        ...base,
+        id: Number(base.id)
+    };
+}
+
+function serializeActivity(act: any) {
+    if (!act) return null;
+    return {
+        ...act,
+        id: Number(act.id),
+        categoryId: Number(act.categoryId),
+        implementationBasisId: act.implementationBasisId ? Number(act.implementationBasisId) : null,
+        category: act.category ? {
+            name: act.category.name,
+            is_teaching: act.category.isTeaching,
+            ...act.category,
+            id: Number(act.category.id)
+        } : null,
+        basis: act.implementationBasis ? {
+            name: act.implementationBasis.name,
+            ...act.implementationBasis,
+            id: Number(act.implementationBasis.id)
+        } : (act.basis ? {
+            name: act.basis.name,
+            ...act.basis,
+            id: Number(act.basis.id)
+        } : null),
+        classes: act.classRooms ? act.classRooms.map((c: any) => ({
+            class_room_id: Number(c.classRoomId),
+            class: c.classRoom ? {
+                id: Number(c.classRoom.id),
+                name: c.classRoom.name
+            } : null
+        })) : []
+    };
+}
+
+export async function createActivity(formData: FormData) {
+    const session = await auth()
+    const user = session?.user
+
+    if (!user || !user.id) throw new Error('Unauthorized')
 
     // Validate input using Zod
     const rawData = Object.fromEntries(formData.entries())
@@ -26,50 +83,45 @@ export async function createActivity(formData: FormData) {
     const { category_id, activity_date, description, evidence_link, implementation_basis_id, teaching_hours, topic, learning_material, learning_outcome, student_outcome, class_room_ids } = validatedData
 
     // Get user's school_id
-    const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).maybeSingle()
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { schoolId: true }
+    });
 
-    // Insert Activity
-    const { data: activity, error: activityError } = await supabase
-        .from('activities')
-        .insert({
-            user_id: user.id,
-            school_id: profile?.school_id,
-            category_id,
-            implementation_basis_id,
-            activity_date,
+    const categoryIdVal = BigInt(category_id)
+    const basisIdVal = implementation_basis_id ? BigInt(implementation_basis_id) : null
+
+    // Create Activity
+    const activity = await prisma.activity.create({
+        data: {
+            userId: user.id,
+            schoolId: profile?.schoolId,
+            categoryId: categoryIdVal,
+            implementationBasisId: basisIdVal,
+            activityDate: new Date(activity_date),
             description,
-            evidence_link,
-            teaching_hours,
+            evidenceLink: evidence_link,
+            teachingHours: teaching_hours,
             topic,
-            learning_material,
-            learning_outcome,
-            student_outcome,
+            learningMaterial: learning_material,
+            learningOutcome: learning_outcome,
+            studentOutcome: student_outcome,
             status: 'Selesai'
-        })
-        .select()
-        .maybeSingle()
-
-    if (activityError) {
-        console.error('Activity Error:', activityError)
-        return { success: false, error: activityError.message };
-    }
+        }
+    })
 
     // Handle Class Rooms pivot if it's a teaching activity
     if (class_room_ids && activity) {
         const ids = class_room_ids.split(',').map(id => id.trim()).filter(id => id !== "")
         if (ids.length > 0) {
             const pivotData = ids.map(class_id => ({
-                activity_id: activity.id,
-                class_room_id: parseInt(class_id, 10)
+                activityId: activity.id,
+                classRoomId: BigInt(class_id)
             }))
 
-            // Use admin client to bypass RLS on pivot table activity_class_rooms
-            const adminSupabase = createAdminClient()
-            const { error: pivotError } = await adminSupabase
-                .from('activity_class_rooms')
-                .insert(pivotData)
-
-            if (pivotError) console.error('Pivot Error:', pivotError)
+            await prisma.activityClassRoom.createMany({
+                data: pivotData
+            })
         }
     }
 
@@ -79,41 +131,46 @@ export async function createActivity(formData: FormData) {
 }
 
 export async function getCategories() {
-    const supabase = await createClient()
-    const { data: { user } = { user: null } } = await supabase.auth.getUser()
+    const session = await auth()
+    const user = session?.user
 
-    if (!user) {
-        const { data, error } = await supabase.from('report_categories').select('*').is('user_id', null).is('school_id', null).order('name')
-        if (error) throw error
-        return data
+    if (!user || !user.id) {
+        const data = await prisma.reportCategory.findMany({
+            where: {
+                userId: null,
+                schoolId: null
+            },
+            orderBy: { name: 'asc' }
+        })
+        return data.map(serializeCategory)
     }
 
     // Get user's school_id
-    const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).maybeSingle()
-    const schoolId = profile?.school_id
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { schoolId: true }
+    })
+    const schoolId = profile?.schoolId
 
-    let query = supabase.from('report_categories').select('*')
+    let whereClause: any = {
+        OR: [
+            { userId: null, schoolId: null }
+        ]
+    }
+
+    if (schoolId) {
+        whereClause.OR.push({ schoolId, userId: null })
+        whereClause.OR.push({ schoolId, userId: user.id })
+    }
+    
+    whereClause.OR.push({ userId: user.id })
 
     try {
-        if (schoolId && typeof schoolId === 'string' && schoolId.length > 30) {
-            // Include system defaults (null user AND null school), 
-            // OR school-wide categories (this school AND null user),
-            // OR user-specific items
-            query = query.or(`and(user_id.is.null,school_id.is.null),school_id.eq.${schoolId},user_id.eq.${user.id}`)
-        } else if (user?.id) {
-            // Just defaults and user's own items
-            query = query.or(`and(user_id.is.null,school_id.is.null),user_id.eq.${user.id}`)
-        } else {
-            // Fallback for unexpected state
-            query = query.is('user_id', null).is('school_id', null)
-        }
-
-        const { data, error } = await query.order('name')
-        if (error) {
-            console.error('getCategories Error:', error)
-            throw error
-        }
-        return data || []
+        const data = await prisma.reportCategory.findMany({
+            where: whereClause,
+            orderBy: { name: 'asc' }
+        })
+        return data.map(serializeCategory) || []
     } catch (e) {
         console.error('getCategories Unexpected Error:', e)
         return []
@@ -121,35 +178,45 @@ export async function getCategories() {
 }
 
 export async function getClassRooms() {
-    const supabase = await createClient()
-    const { data: { user } = { user: null } } = await supabase.auth.getUser()
+    const session = await auth()
+    const user = session?.user
 
-    if (!user) {
-        const { data, error } = await supabase.from('class_rooms').select('*').is('user_id', null).is('school_id', null).order('name')
-        if (error) throw error
-        return data
+    if (!user || !user.id) {
+        const data = await prisma.classRoom.findMany({
+            where: {
+                userId: null,
+                schoolId: null
+            },
+            orderBy: { name: 'asc' }
+        })
+        return data.map(serializeClassRoom)
     }
 
-    const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).maybeSingle()
-    const schoolId = profile?.school_id
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { schoolId: true }
+    })
+    const schoolId = profile?.schoolId
 
-    let query = supabase.from('class_rooms').select('*')
+    let whereClause: any = {
+        OR: [
+            { userId: null, schoolId: null }
+        ]
+    }
+
+    if (schoolId) {
+        whereClause.OR.push({ schoolId, userId: null })
+        whereClause.OR.push({ schoolId, userId: user.id })
+    }
+
+    whereClause.OR.push({ userId: user.id })
 
     try {
-        if (schoolId && typeof schoolId === 'string' && schoolId.length > 30) {
-            query = query.or(`and(user_id.is.null,school_id.is.null),school_id.eq.${schoolId},user_id.eq.${user.id}`)
-        } else if (user?.id) {
-            query = query.or(`and(user_id.is.null,school_id.is.null),user_id.eq.${user.id}`)
-        } else {
-            query = query.is('user_id', null).is('school_id', null)
-        }
-
-        const { data, error } = await query.order('name')
-        if (error) {
-            console.error('getClassRooms Error:', error)
-            throw error
-        }
-        return data || []
+        const data = await prisma.classRoom.findMany({
+            where: whereClause,
+            orderBy: { name: 'asc' }
+        })
+        return data.map(serializeClassRoom) || []
     } catch (e) {
         console.error('getClassRooms Unexpected Error:', e)
         return []
@@ -157,35 +224,45 @@ export async function getClassRooms() {
 }
 
 export async function getImplementationBases() {
-    const supabase = await createClient()
-    const { data: { user } = { user: null } } = await supabase.auth.getUser()
+    const session = await auth()
+    const user = session?.user
 
-    if (!user) {
-        const { data, error } = await supabase.from('implementation_bases').select('*').is('user_id', null).is('school_id', null).order('name')
-        if (error) throw error
-        return data
+    if (!user || !user.id) {
+        const data = await prisma.implementationBasis.findMany({
+            where: {
+                userId: null,
+                schoolId: null
+            },
+            orderBy: { name: 'asc' }
+        })
+        return data.map(serializeBase)
     }
 
-    const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).maybeSingle()
-    const schoolId = profile?.school_id
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { schoolId: true }
+    })
+    const schoolId = profile?.schoolId
 
-    let query = supabase.from('implementation_bases').select('*')
+    let whereClause: any = {
+        OR: [
+            { userId: null, schoolId: null }
+        ]
+    }
+
+    if (schoolId) {
+        whereClause.OR.push({ schoolId, userId: null })
+        whereClause.OR.push({ schoolId, userId: user.id })
+    }
+
+    whereClause.OR.push({ userId: user.id })
 
     try {
-        if (schoolId && typeof schoolId === 'string' && schoolId.length > 30) {
-            query = query.or(`and(user_id.is.null,school_id.is.null),school_id.eq.${schoolId},user_id.eq.${user.id}`)
-        } else if (user?.id) {
-            query = query.or(`and(user_id.is.null,school_id.is.null),user_id.eq.${user.id}`)
-        } else {
-            query = query.is('user_id', null).is('school_id', null)
-        }
-
-        const { data, error } = await query.order('name')
-        if (error) {
-            console.error('getImplementationBases Error:', error)
-            throw error
-        }
-        return data || []
+        const data = await prisma.implementationBasis.findMany({
+            where: whereClause,
+            orderBy: { name: 'asc' }
+        })
+        return data.map(serializeBase) || []
     } catch (e) {
         console.error('getImplementationBases Unexpected Error:', e)
         return []
@@ -193,48 +270,45 @@ export async function getImplementationBases() {
 }
 
 export async function getRecentActivities() {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return []
+    const session = await auth()
+    const user = session?.user
+    if (!user || !user.id) return []
 
-    const { data } = await supabase
-        .from('activities')
-        .select(`
-      *,
-      category:report_categories(name, is_teaching)
-    `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(5)
-    return data || []
+    const data = await prisma.activity.findMany({
+        where: { userId: user.id },
+        include: {
+            category: true
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5
+    })
+
+    return data.map(serializeActivity)
 }
 
 export async function getMonthlyStats() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { counts: Array(12).fill(0), raw: [] };
+    const session = await auth()
+    const user = session?.user
+    if (!user || !user.id) return { counts: Array(12).fill(0), raw: [] }
 
-    const { data, error } = await supabase
-        .from('activities')
-        .select('activity_date')
-        .eq('user_id', user.id);
+    const data = await prisma.activity.findMany({
+        where: { userId: user.id },
+        select: { activityDate: true }
+    })
 
-    if (error) {
-        console.error('getMonthlyStats error', error);
-        return { counts: Array(12).fill(0), raw: [] };
-    }
+    const raw = data.map(d => ({
+        activity_date: d.activityDate.toISOString().split('T')[0]
+    }))
+    const counts = calculateMonthlyCounts(raw)
 
-    const raw = data || [];
-    const counts = calculateMonthlyCounts(raw);
-
-    return { counts, raw };
+    return { counts, raw }
 }
 
 export async function getDashboardStats() {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
+        const session = await auth()
+        const user = session?.user
+        if (!user || !user.id) {
             return {
                 totalActivities: 0,
                 teachingActivities: 0,
@@ -243,31 +317,24 @@ export async function getDashboardStats() {
             }
         }
 
-        // Total Activities
-        const { count: totalActivities, error: totalError } = await supabase
-            .from('activities')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id)
+        const totalActivities = await prisma.activity.count({
+            where: { userId: user.id }
+        })
 
-        if (totalError) console.error('Stats - Total Error:', totalError)
-
-        // Teaching Activities (simplified approach)
-        const { count: teachingCount, error: teachingError } = await supabase
-            .from('activities')
-            .select('report_categories!inner(is_teaching)', { count: 'exact', head: true })
-            .eq('user_id', user.id)
-            .eq('report_categories.is_teaching', true)
-
-        if (teachingError) console.error('Stats - Teaching Error:', teachingError)
-
-        const total = totalActivities || 0
-        const teaching = teachingCount || 0
+        const teachingCount = await prisma.activity.count({
+            where: {
+                userId: user.id,
+                category: {
+                    isTeaching: true
+                }
+            }
+        })
 
         return {
-            totalActivities: total,
-            teachingActivities: teaching,
-            dailyAverage: total / 30,
-            performancePoints: total * 10
+            totalActivities,
+            teachingActivities: teachingCount,
+            dailyAverage: totalActivities / 30,
+            performancePoints: totalActivities * 10
         }
     } catch (error) {
         console.error('getDashboardStats Error:', error)
@@ -279,67 +346,94 @@ export async function getDashboardStats() {
         }
     }
 }
+
 export async function seedInitialData(_formData: FormData) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Unauthorized')
+    const session = await auth()
+    const user = session?.user
+    if (!user || !user.id) throw new Error('Unauthorized')
 
-    const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).maybeSingle()
-    const schoolId = profile?.school_id
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { schoolId: true }
+    })
+    const schoolId = profile?.schoolId
 
-    const adminSupabase = createAdminClient()
-
-    const TEMPLATE_SCHOOL_ID = 'e62b1c6b-f2d7-4591-97be-492f794df156';
-    const TEMPLATE_BASES_SCHOOL_ID = 'e62b1c6b-f2d7-4591-97be-492f794df156';
+    const TEMPLATE_SCHOOL_ID = 'e62b1c6b-f2d7-4591-97be-492f794df156'
 
     try {
         // 1. Seed Categories from Template
-        const { data: templateCats } = await adminSupabase
-            .from('report_categories')
-            .select('name, rhk_label, is_teaching')
-            .eq('school_id', TEMPLATE_SCHOOL_ID);
+        const templateCats = await prisma.reportCategory.findMany({
+            where: { schoolId: TEMPLATE_SCHOOL_ID }
+        })
 
         if (templateCats) {
             for (const cat of templateCats) {
-                let checkQuery = adminSupabase.from('report_categories').select('id').eq('name', cat.name)
-                if (schoolId) checkQuery = checkQuery.eq('school_id', schoolId)
-                const { data } = await checkQuery.maybeSingle()
-                if (!data) {
-                    await adminSupabase.from('report_categories').insert({ ...cat, school_id: schoolId, user_id: user.id })
+                const check = await prisma.reportCategory.findFirst({
+                    where: {
+                        name: cat.name,
+                        schoolId: schoolId || null
+                    }
+                })
+                if (!check) {
+                    await prisma.reportCategory.create({
+                        data: {
+                            name: cat.name,
+                            rhkLabel: cat.rhkLabel,
+                            isTeaching: cat.isTeaching,
+                            schoolId: schoolId || null,
+                            userId: user.id
+                        }
+                    })
                 }
             }
         }
 
         // 2. Seed Class Rooms from Template
-        const { data: templateClasses } = await adminSupabase
-            .from('class_rooms')
-            .select('name')
-            .eq('school_id', TEMPLATE_SCHOOL_ID);
+        const templateClasses = await prisma.classRoom.findMany({
+            where: { schoolId: TEMPLATE_SCHOOL_ID }
+        })
 
         if (templateClasses) {
             for (const cls of templateClasses) {
-                let checkQuery = adminSupabase.from('class_rooms').select('id').eq('name', cls.name)
-                if (schoolId) checkQuery = checkQuery.eq('school_id', schoolId)
-                const { data } = await checkQuery.maybeSingle()
-                if (!data) {
-                    await adminSupabase.from('class_rooms').insert({ ...cls, school_id: schoolId, user_id: user.id })
+                const check = await prisma.classRoom.findFirst({
+                    where: {
+                        name: cls.name,
+                        schoolId: schoolId || null
+                    }
+                })
+                if (!check) {
+                    await prisma.classRoom.create({
+                        data: {
+                            name: cls.name,
+                            schoolId: schoolId || null,
+                            userId: user.id
+                        }
+                    })
                 }
             }
         }
 
         // 3. Seed Implementation Bases from Template
-        const { data: templateBases } = await adminSupabase
-            .from('implementation_bases')
-            .select('name')
-            .eq('school_id', TEMPLATE_BASES_SCHOOL_ID);
+        const templateBases = await prisma.implementationBasis.findMany({
+            where: { schoolId: TEMPLATE_SCHOOL_ID }
+        })
 
         if (templateBases) {
             for (const base of templateBases) {
-                let checkQuery = adminSupabase.from('implementation_bases').select('id').eq('name', base.name)
-                if (schoolId) checkQuery = checkQuery.eq('school_id', schoolId)
-                const { data } = await checkQuery.maybeSingle()
-                if (!data) {
-                    await adminSupabase.from('implementation_bases').insert({ ...base, school_id: schoolId, user_id: user.id })
+                const check = await prisma.implementationBasis.findFirst({
+                    where: {
+                        name: base.name,
+                        schoolId: schoolId || null
+                    }
+                })
+                if (!check) {
+                    await prisma.implementationBasis.create({
+                        data: {
+                            name: base.name,
+                            schoolId: schoolId || null,
+                            userId: user.id
+                        }
+                    })
                 }
             }
         }
@@ -354,14 +448,17 @@ export async function seedInitialData(_formData: FormData) {
 }
 
 export async function updateSettings(formData: FormData) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const session = await auth()
+    const user = session?.user
 
-    if (!user) throw new Error('Unauthorized')
+    if (!user || !user.id) throw new Error('Unauthorized')
 
-    // Check if user is admin or super_admin
-    const { data: profile } = await supabase.from('profiles').select('role, school_id').eq('id', user.id).maybeSingle()
-    if (!profile || !['admin', 'super_admin'].includes(profile.role)) throw new Error('Forbidden')
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { role: true, schoolId: true }
+    })
+    if (!profile || !['admin', 'super_admin'].includes(profile.role || '')) throw new Error('Forbidden')
+    if (!profile.schoolId) throw new Error('No school configured')
 
     const school_name = formData.get('school_name') as string
     const school_address = formData.get('school_address') as string
@@ -370,23 +467,22 @@ export async function updateSettings(formData: FormData) {
     const headmaster_pangkat = formData.get('headmaster_pangkat') as string
     const headmaster_jabatan = formData.get('headmaster_jabatan') as string
 
-    const adminSupabase = createAdminClient()
-    const { error } = await adminSupabase
-        .from('schools')
-        .update({
-            name: school_name,
-            address: school_address,
-            headmaster_name,
-            headmaster_nip,
-            headmaster_pangkat,
-            headmaster_jabatan,
-            updated_at: new Date().toISOString()
+    try {
+        await prisma.school.update({
+            where: { id: profile.schoolId },
+            data: {
+                name: school_name,
+                address: school_address,
+                headmasterName: headmaster_name,
+                headmasterNip: headmaster_nip,
+                headmasterPangkat: headmaster_pangkat,
+                headmasterJabatan: headmaster_jabatan,
+                updatedAt: new Date()
+            }
         })
-        .eq('id', profile.school_id)
-
-    if (error) {
+    } catch (error: any) {
         console.error('Settings Update Error:', error)
-        throw new Error(error.message)
+        throw new Error(error.message || 'Gagal menyimpan pengaturan')
     }
 
     revalidatePath('/settings')
@@ -394,41 +490,37 @@ export async function updateSettings(formData: FormData) {
 }
 
 export async function getActivities(month?: number, year?: number) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return []
-
-    // Use admin client to bypass RLS on pivot table activity_class_rooms
-    const adminSupa = createAdminClient()
+    const session = await auth()
+    const user = session?.user
+    if (!user || !user.id) return []
 
     try {
-        let query = adminSupa
-            .from('activities')
-            .select(`
-                *,
-                category:report_categories(name, is_teaching),
-                basis:implementation_bases(name),
-                classes:activity_class_rooms(
-                    class:class_rooms(id, name)
-                )
-            `)
-            .eq('user_id', user.id)
+        let whereClause: any = { userId: user.id }
 
         if (month && year) {
-            const lastDay = new Date(year, month, 0).getDate();
-            query = query
-                .gte('activity_date', `${year}-${String(month).padStart(2, '0')}-01`)
-                .lte('activity_date', `${year}-${String(month).padStart(2, '0')}-${lastDay}`);
+            const startDate = new Date(year, month - 1, 1)
+            const endDate = new Date(year, month, 0, 23, 59, 59, 999)
+            whereClause.activityDate = {
+                gte: startDate,
+                lte: endDate
+            }
         }
 
-        const { data, error } = await query.order('activity_date', { ascending: false })
+        const data = await prisma.activity.findMany({
+            where: whereClause,
+            include: {
+                category: true,
+                implementationBasis: true,
+                classRooms: {
+                    include: {
+                        classRoom: true
+                    }
+                }
+            },
+            orderBy: { activityDate: 'desc' }
+        })
 
-        if (error) {
-            console.error('getActivities Error:', error)
-            return []
-        }
-
-        return data || []
+        return data.map(serializeActivity)
     } catch (error) {
         console.error('getActivities Exception:', error)
         return []
@@ -436,34 +528,31 @@ export async function getActivities(month?: number, year?: number) {
 }
 
 export async function getActivityById(id: string) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Unauthorized')
+    const session = await auth()
+    const user = session?.user
+    if (!user || !user.id) throw new Error('Unauthorized')
 
-    const adminSupa = createAdminClient()
-    const { data, error } = await adminSupa
-        .from('activities')
-        .select(`
-            *,
-            category:report_categories(*),
-            basis:implementation_bases(*),
-            classes:activity_class_rooms(
-                class_room_id
-            )
-        `)
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .maybeSingle()
+    const data = await prisma.activity.findFirst({
+        where: {
+            id: BigInt(id),
+            userId: user.id
+        },
+        include: {
+            category: true,
+            implementationBasis: true,
+            classRooms: true
+        }
+    })
 
-    if (error) throw new Error(error.message)
-    return data
+    if (!data) return null
+    return serializeActivity(data)
 }
 
 export async function updateActivity(id: string, formData: FormData) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const session = await auth()
+    const user = session?.user
 
-    if (!user) throw new Error('Unauthorized')
+    if (!user || !user.id) throw new Error('Unauthorized')
 
     // Validate input using Zod
     const rawData = Object.fromEntries(formData.entries())
@@ -477,44 +566,52 @@ export async function updateActivity(id: string, formData: FormData) {
     const validatedData = validation.data
     const { category_id, activity_date, description, evidence_link, implementation_basis_id, student_count, teaching_hours, topic, learning_material, learning_outcome, student_outcome, class_room_ids } = validatedData
 
-    // Update Activity
-    const { error: activityError } = await supabase
-        .from('activities')
-        .update({
-            category_id,
-            implementation_basis_id,
-            activity_date,
-            description,
-            evidence_link,
-            teaching_hours,
-            topic,
-            learning_material,
-            learning_outcome,
-            student_outcome,
-            student_count,
-            updated_at: new Date().toISOString()
+    try {
+        // Update Activity
+        const activityIdVal = BigInt(id)
+        await prisma.activity.update({
+            where: {
+                id: activityIdVal,
+                userId: user.id
+            },
+            data: {
+                categoryId: BigInt(category_id),
+                implementationBasisId: implementation_basis_id ? BigInt(implementation_basis_id) : null,
+                activityDate: new Date(activity_date),
+                description,
+                evidenceLink: evidence_link,
+                teachingHours: teaching_hours,
+                topic,
+                learningMaterial: learning_material,
+                learningOutcome: learning_outcome,
+                studentOutcome: student_outcome,
+                studentCount: student_count ? parseInt(student_count as any, 10) : null,
+                updatedAt: new Date()
+            }
         })
-        .eq('id', id)
-        .eq('user_id', user.id)
 
-    if (activityError) return { success: false, error: activityError.message };
+        // Update Class Rooms Pivot
+        // 1. Delete existing pivots
+        await prisma.activityClassRoom.deleteMany({
+            where: { activityId: activityIdVal }
+        })
 
-    // Update Class Rooms Pivot
-    const adminSupabase = createAdminClient()
-
-    // 1. Delete existing pivots
-    await adminSupabase.from('activity_class_rooms').delete().eq('activity_id', id)
-
-    // 2. Insert new pivots if any
-    if (class_room_ids) {
-        const ids = class_room_ids.split(',').map(cid => cid.trim()).filter(cid => cid !== "")
-        if (ids.length > 0) {
-            const pivotData = ids.map(class_id => ({
-                activity_id: id,
-                class_room_id: parseInt(class_id, 10)
-            }))
-            await adminSupabase.from('activity_class_rooms').insert(pivotData)
+        // 2. Insert new pivots if any
+        if (class_room_ids) {
+            const ids = class_room_ids.split(',').map(cid => cid.trim()).filter(cid => cid !== "")
+            if (ids.length > 0) {
+                const pivotData = ids.map(class_id => ({
+                    activityId: activityIdVal,
+                    classRoomId: BigInt(class_id)
+                }))
+                await prisma.activityClassRoom.createMany({
+                    data: pivotData
+                })
+            }
         }
+    } catch (err: any) {
+        console.error('Update Activity Error:', err)
+        return { success: false, error: err.message || 'Gagal memperbarui aktivitas' }
     }
 
     revalidatePath('/activities')
@@ -523,17 +620,20 @@ export async function updateActivity(id: string, formData: FormData) {
 }
 
 export async function deleteActivity(id: string) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Unauthorized')
+    const session = await auth()
+    const user = session?.user
+    if (!user || !user.id) throw new Error('Unauthorized')
 
-    const { error } = await supabase
-        .from('activities')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id)
-
-    if (error) throw new Error(error.message)
+    try {
+        await prisma.activity.delete({
+            where: {
+                id: BigInt(id),
+                userId: user.id
+            }
+        })
+    } catch (err: any) {
+        throw new Error(err.message || 'Gagal menghapus aktivitas')
+    }
 
     revalidatePath('/activities')
     revalidatePath('/')

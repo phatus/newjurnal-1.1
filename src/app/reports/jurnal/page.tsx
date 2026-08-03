@@ -1,6 +1,6 @@
 import React from "react";
-import { createAdminClient } from "@/utils/supabase/admin";
-import { createClient } from "@/utils/supabase/server";
+import { auth } from "@/auth";
+import prisma from "@/lib/db";
 import { ReportFooter, PrintButton, BackButton } from "@/components/ReportComponents";
 import { redirect } from "next/navigation";
 import type { Activity } from "@/types";
@@ -13,38 +13,57 @@ export default async function JurnalReportPage(props: {
     const month = searchParams.month ? parseInt(searchParams.month) : currentMonth;
     const year = parseInt(searchParams.year || new Date().getFullYear().toString());
 
-    // Use regular client for auth check
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) redirect('/login');
+    const session = await auth();
+    const user = session?.user;
+    if (!user || !user.id) redirect('/login');
 
-    const adminSupa = createAdminClient();
-
-    const { data: profile } = await adminSupa.from('profiles').select('*, school:schools(*)').eq('id', user.id).maybeSingle();
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        include: { school: true }
+    });
 
     // month is 1-12, use new Date(year, month, 0) to get last day of that month
     const lastDate = new Date(year, month, 0); // Date object for last day of month
     const lastDay = lastDate.getDate();
-    const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
-    const endDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-    // Filter for teaching activities only using !inner join
-    const { data: activities, error } = await adminSupa
-        .from('activities')
-        .select(`
-            *,
-            category:report_categories!inner(name, is_teaching),
-            classes:activity_class_rooms(
-                class:class_rooms(name)
-            )
-        `)
-        .eq('user_id', user.id)
-        .eq('report_categories.is_teaching', true)
-        .gte('activity_date', startDate)
-        .lte('activity_date', endDate)
-        .order('activity_date', { ascending: true });
+    const dbActivities = await prisma.activity.findMany({
+        where: {
+            userId: user.id,
+            category: {
+                isTeaching: true
+            },
+            activityDate: {
+                gte: startDate,
+                lte: endDate
+            }
+        },
+        include: {
+            category: true,
+            classRooms: {
+                include: {
+                    classRoom: true
+                }
+            }
+        },
+        orderBy: { activityDate: 'asc' }
+    });
 
-    if (error) console.error('Jurnal query error:', error);
+    const activities = dbActivities.map(act => ({
+        id: act.id.toString(),
+        activity_date: act.activityDate.toISOString().split('T')[0],
+        description: act.description,
+        topic: act.topic,
+        teaching_hours: act.teachingHours,
+        learning_material: act.learningMaterial,
+        learning_outcome: act.learningOutcome,
+        student_outcome: act.studentOutcome,
+        category: act.category ? { name: act.category.name, is_teaching: act.category.isTeaching } : null,
+        classes: act.classRooms.map(c => ({
+            class: c.classRoom ? { name: c.classRoom.name } : null
+        }))
+    })) as any[];
 
     const monthName = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"][month - 1];
 
@@ -160,13 +179,13 @@ export default async function JurnalReportPage(props: {
             <p className="text-center text-[9px] text-slate-500 mb-8 print:mb-4">* Halaman berlanjut jika ada</p>
 
             <ReportFooter
-                profileName={profile?.name}
-                profileNip={profile?.nip}
-                headmasterName={profile?.school?.headmaster_name}
-                headmasterNip={profile?.school?.headmaster_nip}
-                schoolName={profile?.school?.name}
-                schoolAddress={profile?.school?.address}
-                schoolCity={profile?.school?.city}
+                profileName={profile?.name || undefined}
+                profileNip={profile?.nip || undefined}
+                headmasterName={profile?.school?.headmasterName || undefined}
+                headmasterNip={profile?.school?.headmasterNip || undefined}
+                schoolName={profile?.school?.name || undefined}
+                schoolAddress={profile?.school?.address || undefined}
+                schoolCity={profile?.school?.city || undefined}
                 reportDate={lastDate}
             />
         </div>

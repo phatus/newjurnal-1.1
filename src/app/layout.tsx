@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { createClient } from "@/utils/supabase/server";
+import { auth } from "@/auth";
+import prisma from "@/lib/db";
 import { cn } from "@/lib/utils";
 import ClientLayout from "@/components/ClientLayout";
 import { ToastProvider } from "@/components/ToastProvider";
@@ -28,24 +29,27 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await auth();
+  const user = session?.user;
 
-  let profile = null;
-  if (user) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .maybeSingle();
-    profile = data;
-  }
+  const dbProfile = user?.id ? await prisma.profile.findUnique({
+    where: { id: user.id }
+  }) : null;
+
+  const profile = dbProfile ? {
+    ...dbProfile,
+    avatar_url: dbProfile.avatarUrl,
+    unit_kerja: dbProfile.unitKerja,
+    pangkat_gol: dbProfile.pangkatGol,
+    report_notifications: dbProfile.reportNotifications,
+    school_id: dbProfile.schoolId
+  } : null;
 
   return (
     <html lang="id" suppressHydrationWarning>
       <body className={cn(inter.className, "bg-slate-50 text-slate-900 antialiased")}>
         <ToastProvider>
-          <ClientLayout user={user} profile={profile}>
+          <ClientLayout user={user as any} profile={profile as any}>
             {children}
           </ClientLayout>
         </ToastProvider>

@@ -3,23 +3,33 @@ import { Shield, Users, Database, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import UserIdentity from "@/components/UserIdentity";
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/server";
+import { auth } from "@/auth";
+import prisma from "@/lib/db";
 import { redirect } from "next/navigation";
 import { getCategories } from "@/app/activities/actions";
 import { getUsers } from "./actions";
 
 export default async function AdminPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const session = await auth();
+    const user = session?.user;
+
+    if (!user || !user.id) {
+        return redirect('/login');
+    }
 
     // Check role
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user?.id)
-        .maybeSingle();
+    const dbProfile = await prisma.profile.findUnique({
+        where: { id: user.id }
+    });
 
-    if (!profile || !['admin', 'super_admin'].includes(profile.role)) {
+    const profile = dbProfile ? {
+        ...dbProfile,
+        avatar_url: dbProfile.avatarUrl,
+        unit_kerja: dbProfile.unitKerja,
+        pangkat_gol: dbProfile.pangkatGol
+    } : null;
+
+    if (!profile || !['admin', 'super_admin'].includes(profile.role || '')) {
         return redirect('/');
     }
 
@@ -42,7 +52,7 @@ export default async function AdminPage() {
                         <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Panel Kontrol</span>
                         <h1 className="text-3xl font-black text-slate-900 tracking-tight mt-1">Administrasi</h1>
                     </div>
-                    <UserIdentity profile={profile} user={user!} />
+                    <UserIdentity profile={profile as any} user={user as any} />
                 </div>
             </div>
 

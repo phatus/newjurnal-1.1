@@ -1,66 +1,95 @@
 'use server'
 
-import { createClient } from '@/utils/supabase/server'
-import { createAdminClient } from '@/utils/supabase/admin'
+import { auth } from '@/auth'
+import prisma from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 
+// Helpers to serialize BigInts & Dates
+function serializeHoliday(h: any) {
+    if (!h) return null;
+    return {
+        id: Number(h.id),
+        holiday_date: h.holidayDate.toISOString().split('T')[0],
+        name: h.name,
+        description: h.description,
+        is_national: h.isNational,
+        created_by: h.createdBy
+    };
+}
+
+function serializeSchedule(s: any) {
+    if (!s) return null;
+    return {
+        ...s,
+        categoryId: s.categoryId ? Number(s.categoryId) : null,
+        implementationBasisId: s.implementationBasisId ? Number(s.implementationBasisId) : null,
+        report_categories: s.category ? {
+            name: s.category.name,
+            is_teaching: s.category.isTeaching
+        } : null,
+        schedule_class_rooms: s.classRooms ? s.classRooms.map((c: any) => ({
+            class_room_id: Number(c.classRoomId),
+            class_rooms: c.classRoom ? {
+                name: c.classRoom.name
+            } : null
+        })) : []
+    };
+}
+
 export async function getHolidays() {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from('holidays')
-    .select('*')
-    .order('holiday_date', { ascending: true });
-
-  if (error) {
-    console.error('Error fetching holidays:', error);
-    return { data: null, error: error.message };
-  }
-
-  return { data, error: null };
+    try {
+        const data = await prisma.holiday.findMany({
+            orderBy: { holidayDate: 'asc' }
+        });
+        return { data: data.map(serializeHoliday), error: null };
+    } catch (error: any) {
+        console.error('Error fetching holidays:', error);
+        return { data: null, error: error.message || 'Gagal mengambil hari libur' };
+    }
 }
 
 export async function getSchedules(selectedDate?: string) {
-    console.log('SERVER ACTION: getSchedules started', selectedDate)
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const session = await auth()
+    const user = session?.user
 
-    if (!user) return []
+    if (!user || !user.id) return []
 
     const checkDate = selectedDate || new Date().toISOString().split('T')[0]
+    const dateParsed = new Date(checkDate)
 
     try {
-        // Use admin client to bypass RLS on pivot table schedule_class_rooms
-        const adminSupa = createAdminClient()
-        const { data, error } = await adminSupa
-            .from('activity_schedules')
-            .select(`
-                *,
-                report_categories(name, is_teaching),
-                schedule_class_rooms(class_room_id, class_rooms(name))
-            `)
-            .eq('user_id', user.id)
-            .order('day_of_week')
-
-        if (error) {
-            console.error('Error fetching schedules:', error)
-            return []
-        }
+        const data = await prisma.activitySchedule.findMany({
+            where: { userId: user.id },
+            include: {
+                category: true,
+                classRooms: {
+                    include: {
+                        classRoom: true
+                    }
+                }
+            },
+            orderBy: { dayOfWeek: 'asc' }
+        })
 
         // Check which ones are already confirmed for the checkDate
-        const { data: dateActivities } = await supabase
-            .from('activities')
-            .select('schedule_id')
-            .eq('user_id', user.id)
-            .eq('activity_date', checkDate)
-            .not('schedule_id', 'is', null)
+        const dateActivities = await prisma.activity.findMany({
+            where: {
+                userId: user.id,
+                activityDate: dateParsed,
+                scheduleId: { not: null }
+            },
+            select: { scheduleId: true }
+        })
 
-        const confirmedIds = new Set(dateActivities?.map(a => a.schedule_id).filter(Boolean) || [])
+        const confirmedIds = new Set(dateActivities.map(a => a.scheduleId).filter(Boolean) as string[])
 
-        return (data || []).map(s => ({
-            ...s,
-            is_confirmed_today: confirmedIds.has(s.id)
-        }))
+        return data.map(s => {
+            const serialized = serializeSchedule(s)
+            return {
+                ...serialized,
+                is_confirmed_today: confirmedIds.has(s.id)
+            }
+        })
     } catch (e) {
         console.error('getSchedules Error:', e)
         return []
@@ -69,11 +98,10 @@ export async function getSchedules(selectedDate?: string) {
 
 export async function saveSchedule(formData: FormData) {
     try {
-        console.log('SERVER ACTION: saveSchedule started')
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const session = await auth()
+        const user = session?.user
 
-        if (!user) return { success: false, error: 'Unauthorized' }
+        if (!user || !user.id) return { success: false, error: 'Unauthorized' }
 
         const days_of_week = (formData.get('days_of_week') as string || '').split(',').filter(id => id).map(id => parseInt(id, 10))
         const category_id = parseInt(formData.get('category_id') as string, 10)
@@ -85,91 +113,96 @@ export async function saveSchedule(formData: FormData) {
 
         if (days_of_week.length === 0) return { success: false, error: 'Harap pilih minimal satu hari' }
 
-        const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).maybeSingle()
+        const profile = await prisma.profile.findUnique({
+            where: { id: user.id },
+            select: { schoolId: true }
+        })
+
+        const catIdVal = BigInt(category_id)
+        const basisIdVal = implementation_basis_id ? BigInt(implementation_basis_id) : null
 
         for (const day_of_week of days_of_week) {
-            const { data: schedule, error: scheduleError } = await supabase
-                .from('activity_schedules')
-                .insert({
-                    user_id: user.id,
-                    school_id: profile?.school_id,
-                    category_id,
-                    implementation_basis_id,
-                    day_of_week,
+            const schedule = await prisma.activitySchedule.create({
+                data: {
+                    userId: user.id,
+                    schoolId: profile?.schoolId,
+                    categoryId: catIdVal,
+                    implementationBasisId: basisIdVal,
+                    dayOfWeek: day_of_week,
                     topic,
                     description,
-                    teaching_hours,
-                    is_active: true
-                })
-                .select()
-                .single()
-
-            if (scheduleError) throw scheduleError
+                    teachingHours: teaching_hours ? parseInt(teaching_hours, 10) : null,
+                    isActive: true
+                }
+            })
 
             if (class_room_ids.length > 0 && schedule) {
                 const pivotData = class_room_ids.map(class_id => ({
-                    schedule_id: schedule.id,
-                    class_room_id: class_id
+                    scheduleId: schedule.id,
+                    classRoomId: BigInt(class_id)
                 }))
-                const adminSupabase = createAdminClient()
-                const { error: pivotError } = await adminSupabase.from('schedule_class_rooms').insert(pivotData)
-                if (pivotError) throw new Error(`Gagal menyimpan data kelas: ${pivotError.message}`)
+
+                await prisma.scheduleClassRoom.createMany({
+                    data: pivotData
+                })
             }
         }
+
         revalidatePath('/activities/schedule')
         revalidatePath('/')
         return { success: true }
-    } catch (e: unknown) {
+    } catch (e: any) {
         console.error('SERVER ACTION: saveSchedule Error', e)
-        const err = e as { message?: string };
-        return { success: false, error: err.message || 'Terjadi kesalahan sistem' }
+        return { success: false, error: e.message || 'Terjadi kesalahan sistem' }
     }
 }
 
-export async function deleteSchedule(id: number) {
+export async function deleteSchedule(id: string) {
     try {
-        console.log('SERVER ACTION: deleteSchedule started', id)
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return { success: false, error: 'Unauthorized' }
+        const session = await auth()
+        const user = session?.user
+        if (!user || !user.id) return { success: false, error: 'Unauthorized' }
 
         // Find topic and category to delete all siblings
-        const { data: current } = await supabase.from('activity_schedules').select('topic, category_id').eq('id', id).single()
+        const current = await prisma.activitySchedule.findFirst({
+            where: { id }
+        })
         
         if (current) {
-            const { error } = await supabase
-                .from('activity_schedules')
-                .delete()
-                .eq('user_id', user.id)
-                .eq('topic', current.topic)
-                .eq('category_id', current.category_id)
-            if (error) throw error
+            await prisma.activitySchedule.deleteMany({
+                where: {
+                    userId: user.id,
+                    topic: current.topic,
+                    categoryId: current.categoryId
+                }
+            })
         } else {
             // Fallback to just deleting the ID
-            const { error } = await supabase.from('activity_schedules').delete().eq('id', id)
-            if (error) throw error
+            await prisma.activitySchedule.delete({
+                where: { id }
+            })
         }
 
         revalidatePath('/activities/schedule')
         revalidatePath('/')
         return { success: true }
-    } catch (e: unknown) {
+    } catch (e: any) {
         console.error('SERVER ACTION: deleteSchedule Error', e)
-        const err = e as { message?: string };
-        return { success: false, error: err.message || 'Gagal menghapus jadwal' }
+        return { success: false, error: e.message || 'Gagal menghapus jadwal' }
     }
 }
 
-export async function updateSchedule(id: number, formData: FormData) {
+export async function updateSchedule(id: string, formData: FormData) {
     try {
-        console.log('SERVER ACTION: updateSchedule started', id)
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const session = await auth()
+        const user = session?.user
 
-        if (!user) return { success: false, error: 'Unauthorized' }
+        if (!user || !user.id) return { success: false, error: 'Unauthorized' }
 
         // 1. Get current record to find siblings (topic match)
-        const { data: current } = await supabase.from('activity_schedules').select('topic, category_id').eq('id', id).single()
+        const current = await prisma.activitySchedule.findFirst({
+            where: { id }
+        })
         if (!current) return { success: false, error: 'Jadwal tidak ditemukan' }
 
         const new_days_of_week = (formData.get('days_of_week') as string || '').split(',').filter(id => id).map(id => parseInt(id, 10))
@@ -184,119 +217,118 @@ export async function updateSchedule(id: number, formData: FormData) {
 
         // 2. Delete ALL records with current topic and category for this user 
         // This effectively "syncs" the group
-        const { error: deleteError } = await supabase
-            .from('activity_schedules')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('topic', current.topic)
-            .eq('category_id', current.category_id)
-
-        if (deleteError) throw deleteError
+        await prisma.activitySchedule.deleteMany({
+            where: {
+                userId: user.id,
+                topic: current.topic,
+                categoryId: current.categoryId
+            }
+        })
 
         // 3. Create NEW records for all selected days
-        const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user.id).maybeSingle()
+        const profile = await prisma.profile.findUnique({
+            where: { id: user.id },
+            select: { schoolId: true }
+        })
+
+        const catIdVal = BigInt(category_id)
+        const basisIdVal = implementation_basis_id ? BigInt(implementation_basis_id) : null
 
         for (const day of new_days_of_week) {
-            const { data: schedule, error: insertError } = await supabase
-                .from('activity_schedules')
-                .insert({
-                    user_id: user.id,
-                    school_id: profile?.school_id,
-                    category_id,
-                    implementation_basis_id,
-                    day_of_week: day,
+            const schedule = await prisma.activitySchedule.create({
+                data: {
+                    userId: user.id,
+                    schoolId: profile?.schoolId,
+                    categoryId: catIdVal,
+                    implementationBasisId: basisIdVal,
+                    dayOfWeek: day,
                     topic,
                     description,
-                    teaching_hours,
-                    is_active: true
-                })
-                .select()
-                .single()
-
-            if (insertError) throw insertError
+                    teachingHours: teaching_hours ? parseInt(teaching_hours, 10) : null,
+                    isActive: true
+                }
+            })
 
             if (class_room_ids.length > 0 && schedule) {
                 const pivotData = class_room_ids.map(class_id => ({
-                    schedule_id: schedule.id,
-                    class_room_id: class_id
+                    scheduleId: schedule.id,
+                    classRoomId: BigInt(class_id)
                 }))
-                const adminSupabase = createAdminClient()
-                const { error: pivotError } = await adminSupabase.from('schedule_class_rooms').insert(pivotData)
-                if (pivotError) throw new Error(`Gagal menyimpan data kelas: ${pivotError.message}`)
+                await prisma.scheduleClassRoom.createMany({
+                    data: pivotData
+                })
             }
         }
 
         revalidatePath('/activities/schedule')
         revalidatePath('/')
         return { success: true }
-    } catch (e: unknown) {
+    } catch (e: any) {
         console.error('SERVER ACTION: updateSchedule Error:', e)
-        const err = e as { message?: string };
-        return { success: false, error: err.message || 'Gagal memperbarui jadwal' };
+        return { success: false, error: e.message || 'Gagal memperbarui jadwal' };
     }
 }
 
 export async function convertScheduleToActivity(
-    scheduleId: number,
+    scheduleId: string,
     date: string,
     learningMaterial?: string,
     learningOutcome?: string
 ) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Unauthorized')
+    const session = await auth()
+    const user = session?.user
+    if (!user || !user.id) throw new Error('Unauthorized')
 
-    const { data: existing } = await supabase
-        .from('activities')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('schedule_id', scheduleId)
-        .eq('activity_date', date)
-        .maybeSingle()
+    const dateParsed = new Date(date)
+
+    const existing = await prisma.activity.findFirst({
+        where: {
+            userId: user.id,
+            scheduleId: scheduleId,
+            activityDate: dateParsed
+        },
+        select: { id: true }
+    })
 
     if (existing) {
         return { success: false, error: 'Kegiatan untuk jadwal ini sudah dibuat hari ini.' }
     }
 
-    const adminSupa = createAdminClient()
-    const { data: schedule, error: fetchError } = await adminSupa
-        .from('activity_schedules')
-        .select('*, schedule_class_rooms(class_room_id)')
-        .eq('id', scheduleId)
-        .single()
+    const schedule = await prisma.activitySchedule.findFirst({
+        where: { id: scheduleId },
+        include: {
+            classRooms: true
+        }
+    })
 
-    if (fetchError || !schedule) throw new Error('Schedule not found')
+    if (!schedule) throw new Error('Schedule not found')
 
-    const { data: activity, error: activityError } = await supabase
-        .from('activities')
-        .insert({
-            user_id: user.id,
-            school_id: schedule.school_id,
-            category_id: schedule.category_id,
-            implementation_basis_id: schedule.implementation_basis_id,
-            schedule_id: schedule.id,
-            activity_date: date,
+    const activity = await prisma.activity.create({
+        data: {
+            userId: user.id,
+            schoolId: schedule.schoolId,
+            categoryId: schedule.categoryId!,
+            implementationBasisId: schedule.implementationBasisId,
+            scheduleId: schedule.id,
+            activityDate: dateParsed,
             description: schedule.description || 'Kegiatan Rutin Terjadwal',
             topic: schedule.topic || 'Kegiatan Rutin',
-            learning_material: learningMaterial || null,
-            teaching_hours: schedule.teaching_hours || 0,
-            student_count: 32,
-            learning_outcome: learningOutcome || null,
+            learningMaterial: learningMaterial || null,
+            teachingHours: schedule.teachingHours ? String(schedule.teachingHours) : '0',
+            studentCount: 32,
+            learningOutcome: learningOutcome || null,
             status: 'Selesai'
-        })
-        .select()
-        .single()
+        }
+    })
 
-    if (activityError) throw activityError
-
-    if (schedule.schedule_class_rooms && schedule.schedule_class_rooms.length > 0) {
-        const pivotData = schedule.schedule_class_rooms.map((p: { class_room_id: number }) => ({
-            activity_id: activity.id,
-            class_room_id: p.class_room_id
+    if (schedule.classRooms && schedule.classRooms.length > 0) {
+        const pivotData = schedule.classRooms.map(p => ({
+            activityId: activity.id,
+            classRoomId: p.classRoomId
         }))
-        const adminSupabase = createAdminClient()
-        const { error: pivotError } = await adminSupabase.from('activity_class_rooms').insert(pivotData)
-        if (pivotError) console.error('Pivot insert error:', pivotError)
+        await prisma.activityClassRoom.createMany({
+            data: pivotData
+        })
     }
 
     revalidatePath('/')

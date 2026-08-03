@@ -1,0 +1,229 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  profile   Profile?
+
+  @@map("users")
+}
+
+model Profile {
+  id                  String   @id @db.Uuid
+  nip                 String?
+  name                String?
+  pangkatGol          String?  @map("pangkat_gol")
+  jabatan             String?
+  unitKerja           String?  @map("unit_kerja")
+  subject             String?
+  role                String?  @default("user")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  avatarUrl           String?  @map("avatar_url")
+  reportNotifications Boolean? @default(true) @map("report_notifications")
+  theme               String?  @default("light")
+  schoolId            String?  @map("school_id") @db.Uuid
+
+  user                User     @relation(fields: [id], references: [id], onDelete: Cascade)
+  school              School?  @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  activities          Activity[]
+  reportCategories    ReportCategory[]
+  implementationBases ImplementationBasis[]
+  classRooms          ClassRoom[]
+  activitySchedules   ActivitySchedule[]
+  holidays            Holiday[]
+
+  @@map("profiles")
+}
+
+model School {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String
+  address           String?
+  headmasterName    String?  @map("headmaster_name")
+  headmasterNip     String?  @map("headmaster_nip")
+  logoUrl           String?  @map("logo_url")
+  inviteCode        String?  @map("invite_code")
+  isActive          Boolean? @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  headmasterPangkat String?  @map("headmaster_pangkat")
+  headmasterJabatan String?  @map("headmaster_jabatan")
+  npsn              String?  @db.VarChar
+  city              String?
+  
+  profiles          Profile[]
+  activities        Activity[]
+  reportCategories    ReportCategory[]
+  implementationBases ImplementationBasis[]
+  classRooms          ClassRoom[]
+  activitySchedules   ActivitySchedule[]
+
+  @@map("schools")
+}
+
+model ReportCategory {
+  id         BigInt   @id @default(autoincrement())
+  name       String
+  rhkLabel   String   @map("rhk_label")
+  isTeaching Boolean? @default(false) @map("is_teaching")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  userId     String?  @map("user_id") @db.Uuid
+  schoolId   String?  @map("school_id") @db.Uuid
+
+  profile    Profile? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  school     School?  @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  activities Activity[]
+  schedules  ActivitySchedule[]
+
+  @@map("report_categories")
+}
+
+model ImplementationBasis {
+  id        BigInt   @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  userId    String?  @map("user_id") @db.Uuid
+  schoolId  String?  @map("school_id") @db.Uuid
+
+  profile   Profile? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  school    School?  @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  activities Activity[]
+  schedules  ActivitySchedule[]
+
+  @@map("implementation_bases")
+}
+
+model ClassRoom {
+  id        BigInt   @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  userId    String?  @map("user_id") @db.Uuid
+  schoolId  String?  @map("school_id") @db.Uuid
+
+  profile   Profile? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  school    School?  @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  activities ActivityClassRoom[]
+  schedules  ScheduleClassRoom[]
+
+  @@map("class_rooms")
+}
+
+model Activity {
+  id                    BigInt   @id @default(autoincrement())
+  userId                String   @map("user_id") @db.Uuid
+  categoryId            BigInt   @map("category_id")
+  activityDate          DateTime @default(dbgenerated("CURRENT_DATE")) @map("activity_date") @db.Date
+  implementationBasisId BigInt?  @map("implementation_basis_id")
+  description           String
+  outputResult          String?  @map("output_result")
+  evidenceLink          String?  @map("evidence_link")
+  periodStart           Int?     @map("period_start")
+  periodEnd             Int?     @map("period_end")
+  topic                 String?
+  studentOutcome        String?  @map("student_outcome")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  teachingHours         String?  @map("teaching_hours")
+  learningMaterial      String?  @map("learning_material")
+  learningOutcome       String?  @map("learning_outcome")
+  status                String?  @default("Selesai")
+  studentCount          Int?     @map("student_count")
+  schoolId              String?  @map("school_id") @db.Uuid
+  scheduleId            String?  @map("schedule_id") @db.Uuid
+
+  profile               Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category              ReportCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  implementationBasis   ImplementationBasis? @relation(fields: [implementationBasisId], references: [id], onDelete: SetNull)
+  school                School?  @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  classRooms            ActivityClassRoom[]
+
+  @@map("activities")
+}
+
+model ActivityClassRoom {
+  activityId  BigInt    @map("activity_id")
+  classRoomId BigInt    @map("class_room_id")
+  
+  activity    Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  classRoom   ClassRoom @relation(fields: [classRoomId], references: [id], onDelete: Cascade)
+
+  @@id([activityId, classRoomId])
+  @@map("activity_class_rooms")
+}
+
+model SchoolSetting {
+  id                BigInt   @id @default(autoincrement())
+  schoolName        String   @map("school_name")
+  schoolAddress     String?  @map("school_address")
+  headmasterName    String?  @map("headmaster_name")
+  headmasterNip     String?  @map("headmaster_nip")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  headmasterPangkat String?  @map("headmaster_pangkat")
+  headmasterJabatan String?  @default("Kepala Madrasah") @map("headmaster_jabatan")
+
+  @@map("school_settings")
+}
+
+model ActivitySchedule {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String?  @map("user_id") @db.Uuid
+  schoolId              String?  @map("school_id") @db.Uuid
+  categoryId            BigInt?  @map("category_id")
+  implementationBasisId BigInt?  @map("implementation_basis_id")
+  dayOfWeek             Int      @map("day_of_week")
+  topic                 String?
+  description           String?
+  studentOutcome        String?  @map("student_outcome")
+  teachingHours         Int?     @map("teaching_hours")
+  studentCount          Int?     @map("student_count")
+  isActive              Boolean? @default(true) @map("is_active")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  profile               Profile? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school                School?  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  category              ReportCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  implementationBasis   ImplementationBasis? @relation(fields: [implementationBasisId], references: [id], onDelete: SetNull)
+  classRooms            ScheduleClassRoom[]
+
+  @@map("activity_schedules")
+}
+
+model ScheduleClassRoom {
+  id          Int      @id @default(autoincrement())
+  scheduleId  String   @map("schedule_id") @db.Uuid
+  classRoomId BigInt   @map("class_room_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  schedule    ActivitySchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  classRoom   ClassRoom        @relation(fields: [classRoomId], references: [id], onDelete: Cascade)
+
+  @@map("schedule_class_rooms")
+}
+
+model Holiday {
+  id          BigInt   @id @default(autoincrement())
+  holidayDate DateTime @unique @map("holiday_date") @db.Date
+  name        String
+  description String?
+  isNational  Boolean? @default(true) @map("is_national")
+  createdBy   String?  @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  profile     Profile? @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@map("holidays")
+}

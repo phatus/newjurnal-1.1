@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import type { Schedule } from "@/types";
 
 interface ScheduleItem {
-    id: number
+    id: string
     topic: string
     day_of_week: number
     teaching_hours?: string
@@ -19,11 +19,11 @@ interface ScheduleItem {
 
 export default function ScheduleQuickAction({ initialSchedules, selectedDate }: { initialSchedules: Schedule[], selectedDate: string }) {
     const [todaySchedules, setTodaySchedules] = useState<ScheduleItem[]>([])
-    const [loading, setLoading] = useState<number | null>(null)
-    const [completed, setCompleted] = useState<number[]>([])
+    const [loading, setLoading] = useState<string | null>(null)
+    const [completed, setCompleted] = useState<string[]>([])
     
     // KBM Input States
-    const [isInputting, setIsInputting] = useState<number | null>(null)
+    const [isInputting, setIsInputting] = useState<string | null>(null)
     const [materi, setMateri] = useState('')
     const [capaian, setCapaian] = useState('')
 
@@ -32,7 +32,7 @@ export default function ScheduleQuickAction({ initialSchedules, selectedDate }: 
         const dateObj = new Date(selectedDate)
         const dayOfWeek = dateObj.getDay()
 
-        const filtered = initialSchedules.filter(s => s.day_of_week === dayOfWeek) as ScheduleItem[]
+        const filtered = (initialSchedules.filter(s => s.day_of_week === dayOfWeek) as any) as ScheduleItem[]
         setTodaySchedules(filtered)
 
         // Mark as completed if already confirmed on server
@@ -40,7 +40,7 @@ export default function ScheduleQuickAction({ initialSchedules, selectedDate }: 
         setCompleted(alreadyConfirmed)
     }, [initialSchedules, selectedDate])
 
-    const handleConfirm = async (id: number, mat?: string, cap?: string) => {
+    const handleConfirm = async (id: string, mat?: string, cap?: string) => {
         setLoading(id)
         try {
             const result = await convertScheduleToActivity(id, selectedDate, mat, cap) as { success: boolean; error?: string }

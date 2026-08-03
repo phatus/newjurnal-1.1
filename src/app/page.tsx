@@ -11,7 +11,8 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { getDashboardStats, getRecentActivities, getMonthlyStats } from "@/app/activities/actions";
-import { createClient } from "@/utils/supabase/server";
+import { auth } from "@/auth";
+import prisma from "@/lib/db";
 import UserIdentity from "@/components/UserIdentity";
 import { getSchedules } from "@/app/activities/schedule/actions";
 import ScheduleQuickAction from "@/components/ScheduleQuickAction";
@@ -27,10 +28,10 @@ export default async function Dashboard({
   const resolvedParams = await searchParams;
   const selectedDate = (resolvedParams.date as string) || new Date().toISOString().split('T')[0];
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await auth();
+  const user = session?.user;
 
-  if (!user) {
+  if (!user || !user.id) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-4 text-center">
         <h2 className="text-xl font-bold text-slate-800">Sesi Berakhir</h2>
@@ -40,24 +41,23 @@ export default async function Dashboard({
     );
   }
 
-  let profile = null;
-  try {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .maybeSingle();
-    profile = data;
-  } catch (e) {
-    console.error('Profile fetch error:', e);
-  }
+  const dbProfile = await prisma.profile.findUnique({
+    where: { id: user.id }
+  });
 
-  // Fetch School Info from schools table via profile
-  const { data: school } = await supabase
-    .from('schools')
-    .select('name')
-    .eq('id', profile?.school_id)
-    .maybeSingle();
+  const profile = dbProfile ? {
+    ...dbProfile,
+    avatar_url: dbProfile.avatarUrl,
+    unit_kerja: dbProfile.unitKerja,
+    pangkat_gol: dbProfile.pangkatGol,
+    report_notifications: dbProfile.reportNotifications,
+    school_id: dbProfile.schoolId
+  } : null;
+
+  const school = profile?.school_id ? await prisma.school.findUnique({
+    where: { id: profile.school_id },
+    select: { name: true }
+  }) : null;
 
   const stats = await getDashboardStats();
   const recentActivities = await getRecentActivities();
@@ -91,7 +91,7 @@ export default async function Dashboard({
         
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <DashboardDateFilter selectedDate={selectedDate} />
-          <UserIdentity profile={profile} user={user} />
+          <UserIdentity profile={profile as any} user={user as any} />
         </div>
       </header>
 

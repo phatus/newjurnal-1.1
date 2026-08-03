@@ -1,7 +1,8 @@
 import React from "react";
 import { ArrowLeft, Building2, Users, ClipboardList, KeyRound, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/utils/supabase/server";
+import { auth } from "@/auth";
+import prisma from "@/lib/db";
 import { redirect } from "next/navigation";
 import { getSchoolDetail } from "../actions";
 import Link from "next/link";
@@ -10,21 +11,26 @@ export default async function SchoolDetailPage(props: {
     params: Promise<{ id: string }>;
 }) {
     const params = await props.params;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return redirect('/login');
+    const session = await auth();
+    const user = session?.user;
+    if (!user || !user.id) return redirect('/login');
 
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle();
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { role: true }
+    });
 
     if (profile?.role !== 'super_admin') return redirect('/');
 
-    const { school, members, activityCount } = await getSchoolDetail(params.id);
+    const rawSchool = await getSchoolDetail(params.id);
+    if (!rawSchool || !rawSchool.school) return redirect('/super-admin');
 
-    if (!school) return redirect('/super-admin');
+    const school = {
+        ...rawSchool.school,
+        headmaster_name: rawSchool.school.headmasterName,
+        invite_code: rawSchool.school.inviteCode
+    };
+    const { members, activityCount } = rawSchool;
 
     const stats = [
         { name: "Anggota", value: members.length, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
@@ -107,7 +113,7 @@ export default async function SchoolDetailPage(props: {
                             </div>
                         ) : (
                             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                {members.map((member: { id: string; name?: string | null; email?: string | null; role: string }) => (
+                                {members.map((member: any) => (
                                     <div key={member.id} className="flex items-center justify-between p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
                                         <div className="flex items-center gap-3">
                                             <div className="h-9 w-9 rounded-lg bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-black">

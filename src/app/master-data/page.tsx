@@ -1,12 +1,12 @@
 import React from "react";
 import { Database, ArrowRight, BookOpen, Layers, Target } from "lucide-react";
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/server";
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 
 export default async function MasterDataPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const session = await auth();
+    const user = session?.user;
 
     if (!user) {
         return redirect('/login');

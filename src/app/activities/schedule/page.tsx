@@ -34,7 +34,7 @@ export default async function SchedulePage() {
                 categories={categories}
                 classes={classes}
                 bases={bases}
-                holidays={holidays || []}
+                holidays={(holidays || []) as any}
             />
         </div>
     );

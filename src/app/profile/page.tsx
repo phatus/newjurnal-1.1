@@ -12,23 +12,39 @@ import {
     Bell,
     Palette
 } from "lucide-react";
-import { createClient } from "@/utils/supabase/server";
+import { auth } from "@/auth";
+import prisma from "@/lib/db";
 import { logout } from "@/app/auth/actions";
 import Link from 'next/link';
 import { cn } from "@/lib/utils";
 import ProfileAvatar from "@/components/ProfileAvatar";
 
 export default async function ProfilePage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const session = await auth();
+    const sessionUser = session?.user;
 
-    if (!user) return null;
+    if (!sessionUser || !sessionUser.id) return null;
 
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
+    const dbUser = await prisma.user.findUnique({
+        where: { id: sessionUser.id }
+    });
+
+    const dbProfile = await prisma.profile.findUnique({
+        where: { id: sessionUser.id }
+    });
+
+    const profile = dbProfile ? {
+        ...dbProfile,
+        avatar_url: dbProfile.avatarUrl,
+        unit_kerja: dbProfile.unitKerja,
+        pangkat_gol: dbProfile.pangkatGol
+    } : null;
+
+    const user = {
+        ...sessionUser,
+        email: sessionUser.email || '',
+        created_at: dbUser?.createdAt ? dbUser.createdAt.toISOString() : new Date().toISOString()
+    };
 
     const sections = [
         {
@@ -66,10 +82,10 @@ export default async function ProfilePage() {
                 <div className="relative h-full flex items-end px-10 pb-12 max-w-7xl mx-auto w-full">
                     <div className="flex flex-col sm:flex-row items-center sm:items-end gap-8 text-center sm:text-left">
                         <ProfileAvatar
-                            uid={user.id}
-                            url={profile?.avatar_url}
-                            name={profile?.name}
-                            email={user.email}
+                            uid={user.id || ''}
+                            url={profile?.avatar_url || undefined}
+                            name={profile?.name || undefined}
+                            email={user.email || undefined}
                         />
                         <div className="space-y-3 pb-2">
                             <div className="flex flex-col sm:flex-row sm:items-center gap-3">

@@ -2,21 +2,25 @@
 import React from "react";
 import { ChevronLeft, Save, Bell, Palette, Moon, Sun, Monitor } from "lucide-react";
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/server";
+import { auth } from "@/auth";
+import prisma from "@/lib/db";
 import { updatePreferences } from "@/app/auth/actions";
 import { cn } from "@/lib/utils";
 
 export default async function PreferencesPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const session = await auth();
+    const user = session?.user;
 
-    if (!user) return null;
+    if (!user || !user.id) return null;
 
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
+    const dbProfile = await prisma.profile.findUnique({
+        where: { id: user.id }
+    });
+
+    const profile = dbProfile ? {
+        ...dbProfile,
+        report_notifications: dbProfile.reportNotifications
+    } : null;
 
     return (
         <div className="min-h-screen bg-slate-50 pb-10">
@@ -56,7 +60,7 @@ export default async function PreferencesPage() {
                                     type="checkbox"
                                     name="report_notifications"
                                     className="sr-only peer"
-                                    defaultChecked={profile?.report_notifications}
+                                    defaultChecked={profile?.report_notifications ?? false}
                                 />
                                 <div className="w-14 h-8 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:start-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-red-500"></div>
                             </label>

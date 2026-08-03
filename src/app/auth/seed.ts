@@ -1,43 +1,96 @@
 'use server'
 
-import { createClient } from '@/utils/supabase/server'
+import prisma from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 
 export async function seedInitialData(_formData: FormData) {
-    const supabase = await createClient()
+    try {
+        // 1. Seed Categories
+        const categories = [
+            { name: 'Kegiatan Belajar Mengajar (KBM)', rhkLabel: 'Proses Pembelajaran', isTeaching: true },
+            { name: 'Administrasi Kurikulum', rhkLabel: 'Administrasi Sekolah', isTeaching: false },
+            { name: 'Pengembangan Diri (Pelatihan)', rhkLabel: 'Kompetensi Guru', isTeaching: false },
+            { name: 'Tugas Tambahan (Wali Kelas)', rhkLabel: 'Tugas Tambahan', isTeaching: false },
+            { name: 'Kegiatan Ekstrakurikuler', rhkLabel: 'Kesiswaan', isTeaching: false },
+        ]
 
-    // 1. Seed Categories
-    const categories = [
-        { name: 'Kegiatan Belajar Mengajar (KBM)', rhk_label: 'Proses Pembelajaran', is_teaching: true },
-        { name: 'Administrasi Kurikulum', rhk_label: 'Administrasi Sekolah', is_teaching: false },
-        { name: 'Pengembangan Diri (Pelatihan)', rhk_label: 'Kompetensi Guru', is_teaching: false },
-        { name: 'Tugas Tambahan (Wali Kelas)', rhk_label: 'Tugas Tambahan', is_teaching: false },
-        { name: 'Kegiatan Ekstrakurikuler', rhk_label: 'Kesiswaan', is_teaching: false },
-    ]
+        for (const cat of categories) {
+            const exists = await prisma.reportCategory.findFirst({
+                where: {
+                    name: cat.name,
+                    schoolId: null,
+                    userId: null
+                }
+            })
+            if (!exists) {
+                await prisma.reportCategory.create({
+                    data: {
+                        name: cat.name,
+                        rhkLabel: cat.rhkLabel,
+                        isTeaching: cat.isTeaching,
+                        schoolId: null,
+                        userId: null
+                    }
+                })
+            }
+        }
 
-    const { error: catError } = await supabase.from('report_categories').upsert(categories, { onConflict: 'name' })
+        // 2. Seed Class Rooms
+        const classes = [
+            { name: 'X RPL 1' }, { name: 'X RPL 2' },
+            { name: 'XI RPL 1' }, { name: 'XI RPL 2' },
+            { name: 'XII RPL 1' }, { name: 'XII RPL 2' },
+        ]
 
-    // 2. Seed Class Rooms
-    const classes = [
-        { name: 'X RPL 1' }, { name: 'X RPL 2' },
-        { name: 'XI RPL 1' }, { name: 'XI RPL 2' },
-        { name: 'XII RPL 1' }, { name: 'XII RPL 2' },
-    ]
-    const { error: classError } = await supabase.from('class_rooms').upsert(classes, { onConflict: 'name' })
+        for (const cls of classes) {
+            const exists = await prisma.classRoom.findFirst({
+                where: {
+                    name: cls.name,
+                    schoolId: null,
+                    userId: null
+                }
+            })
+            if (!exists) {
+                await prisma.classRoom.create({
+                    data: {
+                        name: cls.name,
+                        schoolId: null,
+                        userId: null
+                    }
+                })
+            }
+        }
 
-    // 3. Seed Implementation Bases
-    const bases = [
-        { name: 'SK Pembagian Tugas Mengajar' },
-        { name: 'Surat Tugas Kepala Sekolah' },
-        { name: 'Program Kerja Sekolah' },
-    ]
-    const { error: baseError } = await supabase.from('implementation_bases').upsert(bases, { onConflict: 'name' })
+        // 3. Seed Implementation Bases
+        const bases = [
+            { name: 'SK Pembagian Tugas Mengajar' },
+            { name: 'Surat Tugas Kepala Sekolah' },
+            { name: 'Program Kerja Sekolah' },
+        ]
 
-    if (catError || classError || baseError) {
-        console.error('Seed Error:', { catError, classError, baseError })
+        for (const base of bases) {
+            const exists = await prisma.implementationBasis.findFirst({
+                where: {
+                    name: base.name,
+                    schoolId: null,
+                    userId: null
+                }
+            })
+            if (!exists) {
+                await prisma.implementationBasis.create({
+                    data: {
+                        name: base.name,
+                        schoolId: null,
+                        userId: null
+                    }
+                })
+            }
+        }
+
+        revalidatePath('/activities/create')
+        return { success: true }
+    } catch (error) {
+        console.error('Seed Error:', error)
         return { success: false, error: 'Gagal melakukan seeding data.' }
     }
-
-    revalidatePath('/activities/create')
-    return { success: true }
 }

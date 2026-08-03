@@ -113,7 +113,7 @@ export type AppMonthlyStats = {
 };
 
 export type AppSchedule = {
-  id: number;
+  id: string;
   user_id: string;
   school_id?: string;
   category_id: number;

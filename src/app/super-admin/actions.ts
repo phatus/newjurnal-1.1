@@ -1,21 +1,20 @@
 'use server'
 
-import { createClient } from '@/utils/supabase/server'
-import { createAdminClient } from '@/utils/supabase/admin'
+import { auth } from '@/auth'
+import prisma from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 // --- Guard ---
 async function requireSuperAdmin() {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Unauthorized')
+    const session = await auth()
+    const user = session?.user
+    if (!user || !user.id) throw new Error('Unauthorized')
 
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle()
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { role: true }
+    })
 
     if (profile?.role !== 'super_admin') throw new Error('Forbidden')
     return user
@@ -24,133 +23,154 @@ async function requireSuperAdmin() {
 // --- Stats ---
 export async function getPlatformStats() {
     await requireSuperAdmin()
-    const adminSupabase = createAdminClient()
 
-    const [schoolsRes, usersRes, activitiesRes] = await Promise.all([
-        adminSupabase.from('schools').select('id', { count: 'exact', head: true }),
-        adminSupabase.from('profiles').select('id', { count: 'exact', head: true }),
-        adminSupabase.from('activities').select('id', { count: 'exact', head: true }),
+    const [totalSchools, totalUsers, totalActivities] = await Promise.all([
+        prisma.school.count(),
+        prisma.profile.count(),
+        prisma.activity.count()
     ])
 
     return {
-        totalSchools: schoolsRes.count || 0,
-        totalUsers: usersRes.count || 0,
-        totalActivities: activitiesRes.count || 0,
+        totalSchools,
+        totalUsers,
+        totalActivities
     }
 }
 
 // --- Schools ---
 export async function getAllSchools() {
     await requireSuperAdmin()
-    const adminSupabase = createAdminClient()
 
-    const { data: schools, error } = await adminSupabase
-        .from('schools')
-        .select(`
-            *,
-            members:profiles(count)
-        `)
-        .order('created_at', { ascending: false })
+    try {
+        const schools = await prisma.school.findMany({
+            include: {
+                profiles: {
+                    select: { id: true }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        })
 
-    if (error) {
+        return schools.map(s => ({
+            id: s.id,
+            name: s.name,
+            address: s.address,
+            headmaster_name: s.headmasterName,
+            headmaster_nip: s.headmasterNip,
+            headmaster_pangkat: s.headmasterPangkat,
+            headmaster_jabatan: s.headmasterJabatan,
+            logo_url: s.logoUrl,
+            invite_code: s.inviteCode || '',
+            is_active: s.isActive ?? true,
+            created_at: s.createdAt.toISOString(),
+            updated_at: s.updatedAt?.toISOString(),
+            members: [{ count: s.profiles.length }]
+        }))
+    } catch (error) {
         console.error('Get Schools Error:', error)
         return []
     }
-    return schools || []
 }
 
 export async function getSchoolDetail(schoolId: string) {
     await requireSuperAdmin()
-    const adminSupabase = createAdminClient()
 
-    const [schoolRes, membersRes, activitiesRes] = await Promise.all([
-        adminSupabase.from('schools').select('*').eq('id', schoolId).maybeSingle(),
-        adminSupabase.from('profiles').select('id, name, role, created_at').eq('school_id', schoolId).order('created_at'),
-        adminSupabase.from('activities').select('id', { count: 'exact', head: true }).eq('school_id', schoolId),
+    const [school, members, activityCount] = await Promise.all([
+        prisma.school.findUnique({ where: { id: schoolId } }),
+        prisma.profile.findMany({
+            where: { schoolId },
+            select: { id: true, name: true, role: true, createdAt: true },
+            orderBy: { createdAt: 'asc' }
+        }),
+        prisma.activity.count({ where: { schoolId } })
     ])
 
     return {
-        school: schoolRes.data,
-        members: membersRes.data || [],
-        activityCount: activitiesRes.count || 0,
+        school,
+        members,
+        activityCount
     }
 }
 
 export async function toggleSchoolActive(schoolId: string) {
     await requireSuperAdmin()
-    const adminSupabase = createAdminClient()
 
-    // Get current status
-    const { data: school } = await adminSupabase
-        .from('schools')
-        .select('is_active')
-        .eq('id', schoolId)
-        .maybeSingle()
+    const school = await prisma.school.findUnique({
+        where: { id: schoolId },
+        select: { isActive: true }
+    })
 
     if (!school) throw new Error('School not found')
 
-    const { error } = await adminSupabase
-        .from('schools')
-        .update({ is_active: !school.is_active, updated_at: new Date().toISOString() })
-        .eq('id', schoolId)
+    await prisma.school.update({
+        where: { id: schoolId },
+        data: {
+            isActive: !school.isActive,
+            updatedAt: new Date()
+        }
+    })
 
-    if (error) throw new Error(error.message)
     revalidatePath('/super-admin')
     return { success: true }
 }
 
 export async function deleteSchool(schoolId: string) {
     await requireSuperAdmin()
-    const adminSupabase = createAdminClient()
 
-    // Get all activities for this school
-    const { data: activities } = await adminSupabase
-        .from('activities')
-        .select('id')
-        .eq('school_id', schoolId)
-    const activityIds = activities?.map(a => a.id) || []
+    try {
+        await prisma.$transaction(async (tx) => {
+            // Delete activity class rooms for activities in this school
+            await tx.activityClassRoom.deleteMany({
+                where: {
+                    activity: { schoolId }
+                }
+            })
 
-    // Delete activity_class_rooms
-    if (activityIds.length > 0) {
-        await adminSupabase.from('activity_class_rooms').delete().in('activity_id', activityIds)
+            // Delete activities
+            await tx.activity.deleteMany({ where: { schoolId } })
+
+            // Delete master data
+            await tx.reportCategory.deleteMany({ where: { schoolId } })
+            await tx.classRoom.deleteMany({ where: { schoolId } })
+            await tx.implementationBasis.deleteMany({ where: { schoolId } })
+
+            // Unlink profiles
+            await tx.profile.updateMany({
+                where: { schoolId },
+                data: { schoolId: null }
+            })
+
+            // Delete the school
+            await tx.school.delete({ where: { id: schoolId } })
+        })
+
+        revalidatePath('/super-admin')
+        return { success: true }
+    } catch (error: any) {
+        console.error('Delete School Error:', error)
+        throw new Error(error.message || 'Gagal menghapus sekolah')
     }
-
-    // Delete activities
-    await adminSupabase.from('activities').delete().eq('school_id', schoolId)
-
-    // Delete master data
-    await adminSupabase.from('report_categories').delete().eq('school_id', schoolId)
-    await adminSupabase.from('class_rooms').delete().eq('school_id', schoolId)
-    await adminSupabase.from('implementation_bases').delete().eq('school_id', schoolId)
-
-    // Unlink profiles (set school_id to null)
-    await adminSupabase.from('profiles').update({ school_id: null }).eq('school_id', schoolId)
-
-    // Delete the school
-    const { error } = await adminSupabase.from('schools').delete().eq('id', schoolId)
-    if (error) throw new Error(error.message)
-
-    revalidatePath('/super-admin')
-    return { success: true }
 }
 
 export async function updateSchoolSettings(schoolId: string, formData: FormData) {
     await requireSuperAdmin()
-    const adminSupabase = createAdminClient()
 
     const name = formData.get('name') as string
     const address = formData.get('address') as string
 
-    const { error } = await adminSupabase
-        .from('schools')
-        .update({
-            name,
-            address,
-            updated_at: new Date().toISOString()
+    try {
+        await prisma.school.update({
+            where: { id: schoolId },
+            data: {
+                name,
+                address,
+                updatedAt: new Date()
+            }
         })
-        .eq('id', schoolId)
+    } catch (error: any) {
+        throw new Error(error.message || 'Gagal menyimpan pengaturan sekolah')
+    }
 
-    if (error) throw new Error(error.message)
     revalidatePath('/super-admin')
     return redirect('/super-admin?message=' + encodeURIComponent('Sekolah berhasil diperbarui.') + '&type=success')
 }

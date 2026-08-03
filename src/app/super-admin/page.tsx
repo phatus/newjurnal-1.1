@@ -1,7 +1,8 @@
 import React from "react";
 import { Globe, Building2, Users, ClipboardList, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/utils/supabase/server";
+import { auth } from "@/auth";
+import prisma from "@/lib/db";
 import { redirect } from "next/navigation";
 import { getPlatformStats, getAllSchools } from "./actions";
 import SuperAdminClient from "./SuperAdminClient";
@@ -10,16 +11,15 @@ export default async function SuperAdminPage(props: {
     searchParams: Promise<{ message?: string; type?: string }>;
 }) {
     const searchParams = await props.searchParams;
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const session = await auth();
+    const user = session?.user;
 
-    if (!user) return redirect('/login');
+    if (!user || !user.id) return redirect('/login');
 
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle();
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { role: true }
+    });
 
     if (profile?.role !== 'super_admin') {
         return redirect('/');

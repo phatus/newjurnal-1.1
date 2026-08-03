@@ -1,20 +1,25 @@
 import React from "react";
 import { ChevronLeft, Save, User, Briefcase, GraduationCap, MapPin, Award, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/server";
+import { auth } from "@/auth";
+import prisma from "@/lib/db";
 import { updateProfile } from "@/app/auth/actions";
 
 export default async function EditProfilePage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const session = await auth();
+    const user = session?.user;
 
-    if (!user) return null;
+    if (!user || !user.id) return null;
 
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
+    const dbProfile = await prisma.profile.findUnique({
+        where: { id: user.id }
+    });
+
+    const profile = dbProfile ? {
+        ...dbProfile,
+        pangkat_gol: dbProfile.pangkatGol,
+        unit_kerja: dbProfile.unitKerja
+    } : null;
 
     return (
         <div className="min-h-screen bg-slate-50 pb-10">

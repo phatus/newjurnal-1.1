@@ -5,5 +5,5 @@ import UsersClient from "./UsersClient";
 export default async function AdminUsersPage() {
     const users = await getUsers();
 
-    return <UsersClient initialUsers={users} />;
+    return <UsersClient initialUsers={users as any} />;
 }

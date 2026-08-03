@@ -1,7 +1,8 @@
 
 import React from "react";
 import { Building2, MapPin, UserCheck, Save, AlertCircle, CheckCircle2 } from "lucide-react";
-import { createClient } from "@/utils/supabase/server";
+import { auth } from "@/auth";
+import prisma from "@/lib/db";
 import { updateSettings } from "@/app/activities/actions";
 import { cn } from "@/lib/utils";
 import { redirect } from "next/navigation";
@@ -13,29 +14,30 @@ export default async function SettingsPage(props: {
     const message = searchParams.message;
     const type = searchParams.type;
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const session = await auth();
+    const user = session?.user;
 
-    if (!user) {
+    if (!user || !user.id) {
         return redirect('/login');
     }
 
     // Check role
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role, school_id')
-        .eq('id', user.id)
-        .maybeSingle();
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { role: true, schoolId: true }
+    });
 
-    if (!profile || !['admin', 'super_admin'].includes(profile.role)) {
+    if (!profile || !['admin', 'super_admin'].includes(profile.role || '')) {
         return redirect('/');
     }
 
-    const { data: school } = await supabase
-        .from('schools')
-        .select('*')
-        .eq('id', profile.school_id)
-        .maybeSingle();
+    if (!profile.schoolId) {
+        return redirect('/onboarding');
+    }
+
+    const school = await prisma.school.findUnique({
+        where: { id: profile.schoolId }
+    });
 
 
     return (
@@ -57,14 +59,14 @@ export default async function SettingsPage(props: {
                 )}
 
                 {/* Invite Code Box */}
-                {school?.invite_code && (
+                {school?.inviteCode && (
                     <div className="bg-slate-900 rounded-[2rem] p-6 mb-6 flex items-center justify-between">
                         <div>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Kode Undangan Sekolah</p>
                             <p className="text-slate-300 text-xs font-medium">Bagikan kode ini ke guru agar mereka bisa bergabung ke sekolah Anda.</p>
                         </div>
                         <div className="bg-white/10 border border-white/20 rounded-xl px-6 py-3 min-w-[140px] text-center">
-                            <p className="text-2xl font-black text-amber-400 tracking-[0.3em] uppercase">{school.invite_code}</p>
+                            <p className="text-2xl font-black text-amber-400 tracking-[0.3em] uppercase">{school.inviteCode}</p>
                         </div>
                     </div>
                 )}
@@ -94,7 +96,7 @@ export default async function SettingsPage(props: {
                                 </label>
                                 <textarea
                                     name="school_address"
-                                    defaultValue={school?.address}
+                                    defaultValue={school?.address || ''}
                                     rows={3}
                                     className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all resize-none"
                                     placeholder="Alamat lengkap sekolah..."
@@ -110,7 +112,7 @@ export default async function SettingsPage(props: {
                                     </label>
                                     <input
                                         name="headmaster_name"
-                                        defaultValue={school?.headmaster_name}
+                                        defaultValue={school?.headmasterName || ''}
                                         className="w-full h-14 px-6 rounded-2xl bg-slate-50 border border-slate-100 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                                     />
                                 </div>
@@ -123,7 +125,7 @@ export default async function SettingsPage(props: {
                                     </label>
                                     <input
                                         name="headmaster_nip"
-                                        defaultValue={school?.headmaster_nip}
+                                        defaultValue={school?.headmasterNip || ''}
                                         className="w-full h-14 px-6 rounded-2xl bg-slate-50 border border-slate-100 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                                     />
                                 </div>
@@ -136,7 +138,7 @@ export default async function SettingsPage(props: {
                                     </label>
                                     <input
                                         name="headmaster_pangkat"
-                                        defaultValue={school?.headmaster_pangkat}
+                                        defaultValue={school?.headmasterPangkat || ''}
                                         className="w-full h-14 px-6 rounded-2xl bg-slate-50 border border-slate-100 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                                     />
                                 </div>
@@ -149,7 +151,7 @@ export default async function SettingsPage(props: {
                                     </label>
                                     <input
                                         name="headmaster_jabatan"
-                                        defaultValue={school?.headmaster_jabatan || 'Kepala Madrasah'}
+                                        defaultValue={school?.headmasterJabatan || 'Kepala Madrasah'}
                                         className="w-full h-14 px-6 rounded-2xl bg-slate-50 border border-slate-100 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                                     />
                                 </div>

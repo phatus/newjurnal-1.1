@@ -4,13 +4,13 @@ import {
     History,
     Search
 } from "lucide-react";
-import { createClient } from "@/utils/supabase/server";
+import { auth } from "@/auth";
 import { getDashboardStats } from "@/app/activities/actions";
 import ReportsClient from "./ReportsClient";
 
 export default async function ReportsPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const session = await auth();
+    const user = session?.user;
 
     if (!user) return null;
 

@@ -1,211 +1,222 @@
 'use server'
 
-import { createClient } from '@/utils/supabase/server'
-import { createAdminClient } from '@/utils/supabase/admin'
+import { auth } from '@/auth'
+import prisma from '@/lib/db'
 import { revalidatePath } from 'next/cache'
+import bcrypt from 'bcryptjs'
+
+// Helper to serialize BigInts
+function serializeCategory(cat: any) {
+    if (!cat) return null;
+    return {
+        ...cat,
+        id: Number(cat.id)
+    };
+}
+
+function serializeClassRoom(cls: any) {
+    if (!cls) return null;
+    return {
+        ...cls,
+        id: Number(cls.id)
+    };
+}
+
+function serializeBase(base: any) {
+    if (!base) return null;
+    return {
+        ...base,
+        id: Number(base.id)
+    };
+}
 
 // --- Categories ---
 export async function createCategory(formData: FormData) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user!.id).maybeSingle()
+    const session = await auth()
+    const user = session?.user
+    if (!user || !user.id) throw new Error('Unauthorized')
 
-    const adminSupabase = createAdminClient()
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { schoolId: true }
+    })
+
     const name = formData.get('name') as string
     const rhk_label = formData.get('rhk_label') as string
     const is_teaching = formData.get('is_teaching') === 'true'
 
-    const { error } = await adminSupabase
-        .from('report_categories')
-        .insert({ name, rhk_label, is_teaching, school_id: profile?.school_id })
+    await prisma.reportCategory.create({
+        data: {
+            name,
+            rhkLabel: rhk_label,
+            isTeaching: is_teaching,
+            schoolId: profile?.schoolId || null
+        }
+    })
 
-    if (error) throw new Error(error.message)
     revalidatePath('/admin/categories')
     return { success: true }
 }
 
 export async function deleteCategory(id: number) {
-    const adminSupabase = createAdminClient()
-    const { error } = await adminSupabase
-        .from('report_categories')
-        .delete()
-        .eq('id', id)
+    await prisma.reportCategory.delete({
+        where: { id: BigInt(id) }
+    })
 
-    if (error) throw new Error(error.message)
     revalidatePath('/admin/categories')
     return { success: true }
 }
 
 export async function updateCategory(id: number, formData: FormData) {
-    const adminSupabase = createAdminClient()
     const name = formData.get('name') as string
     const rhk_label = formData.get('rhk_label') as string
     const is_teaching = formData.get('is_teaching') === 'true'
 
-    const { error } = await adminSupabase
-        .from('report_categories')
-        .update({ name, rhk_label, is_teaching })
-        .eq('id', id)
+    await prisma.reportCategory.update({
+        where: { id: BigInt(id) },
+        data: {
+            name,
+            rhkLabel: rhk_label,
+            isTeaching: is_teaching
+        }
+    })
 
-    if (error) throw new Error(error.message)
     revalidatePath('/admin/categories')
     return { success: true }
 }
 
 // --- Classes ---
 export async function createClass(formData: FormData) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user!.id).maybeSingle()
+    const session = await auth()
+    const user = session?.user
+    if (!user || !user.id) throw new Error('Unauthorized')
 
-    const adminSupabase = createAdminClient()
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { schoolId: true }
+    })
+
     const name = formData.get('name') as string
 
-    const { error } = await adminSupabase
-        .from('class_rooms')
-        .insert({ name, school_id: profile?.school_id })
+    await prisma.classRoom.create({
+        data: {
+            name,
+            schoolId: profile?.schoolId || null
+        }
+    })
 
-    if (error) throw new Error(error.message)
     revalidatePath('/admin/classes')
     return { success: true }
 }
 
 export async function deleteClass(id: number) {
-    const adminSupabase = createAdminClient()
-    const { error } = await adminSupabase
-        .from('class_rooms')
-        .delete()
-        .eq('id', id)
+    await prisma.classRoom.delete({
+        where: { id: BigInt(id) }
+    })
 
-    if (error) throw new Error(error.message)
     revalidatePath('/admin/classes')
     return { success: true }
 }
 
 // --- Implementation Bases ---
 export async function createBase(formData: FormData) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: profile } = await supabase.from('profiles').select('school_id').eq('id', user!.id).maybeSingle()
+    const session = await auth()
+    const user = session?.user
+    if (!user || !user.id) throw new Error('Unauthorized')
 
-    const adminSupabase = createAdminClient()
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { schoolId: true }
+    })
+
     const name = formData.get('name') as string
 
-    const { error } = await adminSupabase
-        .from('implementation_bases')
-        .insert({ name, school_id: profile?.school_id })
+    await prisma.implementationBasis.create({
+        data: {
+            name,
+            schoolId: profile?.schoolId || null
+        }
+    })
 
-    if (error) throw new Error(error.message)
     revalidatePath('/admin/bases')
     return { success: true }
 }
 
 export async function deleteBase(id: number) {
-    const adminSupabase = createAdminClient()
-    const { error } = await adminSupabase
-        .from('implementation_bases')
-        .delete()
-        .eq('id', id)
+    await prisma.implementationBasis.delete({
+        where: { id: BigInt(id) }
+    })
 
-    if (error) throw new Error(error.message)
     revalidatePath('/admin/bases')
     return { success: true }
 }
 
 // --- Users ---
 export async function getUsers() {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: profile } = await supabase.from('profiles').select('school_id, role').eq('id', user!.id).maybeSingle()
+    const session = await auth()
+    const user = session?.user
+    if (!user || !user.id) throw new Error('Unauthorized')
 
-    const adminSupabase = createAdminClient()
-    let query = adminSupabase.from('profiles').select('*')
+    const profile = await prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { schoolId: true, role: true }
+    })
+
+    let query: any = {}
 
     // super_admin sees all, admin sees only their school
-    if (profile?.role !== 'super_admin' && profile?.school_id) {
-        query = query.eq('school_id', profile.school_id)
+    if (profile?.role !== 'super_admin' && profile?.schoolId) {
+        query.schoolId = profile.schoolId
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false })
-    if (error) throw new Error(error.message)
+    const data = await prisma.profile.findMany({
+        where: query,
+        orderBy: { createdAt: 'desc' }
+    })
+
     return data
 }
 
 export async function updateUserRole(id: string, role: string) {
-    const adminSupabase = createAdminClient()
-    const { error } = await adminSupabase
-        .from('profiles')
-        .update({ role })
-        .eq('id', id)
+    await prisma.profile.update({
+        where: { id },
+        data: { role }
+    })
 
-    if (error) throw new Error(error.message)
     revalidatePath('/admin/users')
     return { success: true }
 }
 
 export async function deleteUser(id: string) {
-    const adminSupabase = createAdminClient()
-
     try {
-        // 1. First delete related activities and their class associations
-        // Get all activities for this user
-        const { data: activities } = await adminSupabase
-            .from('activities')
-            .select('id')
-            .eq('user_id', id)
-
-        const activityIds = activities?.map(a => a.id) || []
-
-        // Delete from pivot table first
-        if (activityIds.length > 0) {
-            await adminSupabase
-                .from('activity_class_rooms')
-                .delete()
-                .in('activity_id', activityIds)
-        }
-
-        // Delete activities
-        await adminSupabase
-            .from('activities')
-            .delete()
-            .eq('user_id', id)
-
-        // 2. Delete from public.profiles
-        const { error: profileError } = await adminSupabase
-            .from('profiles')
-            .delete()
-            .eq('id', id)
-
-        if (profileError) throw profileError
-
-        // 3. Delete from Supabase Auth (auth.users)
-        const { error: authError } = await adminSupabase.auth.admin.deleteUser(id)
-
-        if (authError) throw authError
+        // Cascade delete on public.users will automatically clean up public.profiles,
+        // public.activities, and pivot tables.
+        await prisma.user.delete({
+            where: { id }
+        })
 
         revalidatePath('/admin/users')
         return { success: true }
-    } catch (error: unknown) {
+    } catch (error: any) {
         console.error('Delete User Error:', error)
-        const err = error as { message?: string };
-        throw new Error(err.message || 'Gagal menghapus pengguna')
+        throw new Error(error.message || 'Gagal menghapus pengguna')
     }
 }
 
 export async function updateUserPassword(id: string, password: string) {
-    const adminSupabase = createAdminClient()
-
     try {
-        const { error } = await adminSupabase.auth.admin.updateUserById(id, {
-            password: password
+        const hashedPassword = await bcrypt.hash(password, 10)
+        await prisma.user.update({
+            where: { id },
+            data: {
+                password: hashedPassword,
+                updatedAt: new Date()
+            }
         })
 
-        if (error) throw error
-
         return { success: true }
-    } catch (error: unknown) {
+    } catch (error: any) {
         console.error('Update Password Error:', error)
-        const err = error as { message?: string };
-        throw new Error(err.message || 'Gagal memperbarui password')
+        throw new Error(error.message || 'Gagal memperbarui password')
     }
 }

@@ -15,7 +15,7 @@ export default function HolidaysPage() {
   const fetchHolidays = async () => {
     const result = await getHolidays();
     if (result.data) {
-      setHolidays(result.data);
+      setHolidays(result.data as Holiday[]);
     }
   };
 

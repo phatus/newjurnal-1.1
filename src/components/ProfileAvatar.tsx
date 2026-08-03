@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { Loader2, Trash2, Image as ImageIcon, Settings } from 'lucide-react'
-import { createClient } from '@/utils/supabase/client'
 import { updateAvatarOnly } from '@/app/auth/actions'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
@@ -17,7 +16,6 @@ interface ProfileAvatarProps {
 }
 
 export default function ProfileAvatar({ uid, url, name, email }: ProfileAvatarProps) {
-    const supabase = createClient()
     const router = useRouter()
     const [uploading, setUploading] = useState(false)
     const [showMenu, setShowMenu] = useState(false)
@@ -39,17 +37,20 @@ export default function ProfileAvatar({ uid, url, name, email }: ProfileAvatarPr
             }
 
             const file = event.target.files[0]
-            const fileExt = file.name.split('.').pop()
-            const filePath = `${uid}-${Math.random()}.${fileExt}`
+            const uploadData = new FormData()
+            uploadData.append('file', file)
 
-            const { error: uploadError } = await supabase.storage
-                .from('avatars')
-                .upload(filePath, file)
+            const uploadRes = await fetch('/api/upload/avatar', {
+                method: 'POST',
+                body: uploadData
+            })
 
-            if (uploadError) throw uploadError
+            if (!uploadRes.ok) {
+                const errData = await uploadRes.json()
+                throw new Error(errData.error || 'Gagal mengunggah file ke server.')
+            }
 
-            const { data } = supabase.storage.from('avatars').getPublicUrl(filePath)
-            const newUrl = data.publicUrl
+            const { url: newUrl } = await uploadRes.json()
 
             // Set local state for instant feedback
             setPreviewUrl(newUrl)
