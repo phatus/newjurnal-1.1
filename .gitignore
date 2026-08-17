@@ -41,5 +41,4 @@ yarn-error.log*
 next-env.d.ts
 
 # local migration / temp files
-migration_dump.sql
 /scripts/
