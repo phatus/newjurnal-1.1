@@ -12,7 +12,10 @@ function serializeCategory(cat: any) {
     if (!cat) return null;
     return {
         ...cat,
-        id: Number(cat.id)
+        id: Number(cat.id),
+        is_teaching: Boolean(cat.isTeaching ?? cat.is_teaching ?? false),
+        isTeaching: Boolean(cat.isTeaching ?? cat.is_teaching ?? false),
+        rhk_label: cat.rhkLabel || cat.rhk_label || cat.name
     };
 }
 

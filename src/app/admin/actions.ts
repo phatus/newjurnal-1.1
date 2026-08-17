@@ -10,7 +10,10 @@ function serializeCategory(cat: any) {
     if (!cat) return null;
     return {
         ...cat,
-        id: Number(cat.id)
+        id: Number(cat.id),
+        is_teaching: Boolean(cat.isTeaching ?? cat.is_teaching ?? false),
+        isTeaching: Boolean(cat.isTeaching ?? cat.is_teaching ?? false),
+        rhk_label: cat.rhkLabel || cat.rhk_label || cat.name
     };
 }
 
@@ -43,7 +46,8 @@ export async function createCategory(formData: FormData) {
 
     const name = formData.get('name') as string
     const rhk_label = formData.get('rhk_label') as string
-    const is_teaching = formData.get('is_teaching') === 'true'
+    const rawIsTeaching = formData.get('is_teaching')
+    const is_teaching = rawIsTeaching === 'true' || rawIsTeaching === 'on' || rawIsTeaching === '1'
 
     await prisma.reportCategory.create({
         data: {
@@ -55,6 +59,7 @@ export async function createCategory(formData: FormData) {
     })
 
     revalidatePath('/admin/categories')
+    revalidatePath('/master-data/categories')
     return { success: true }
 }
 
@@ -64,13 +69,15 @@ export async function deleteCategory(id: number) {
     })
 
     revalidatePath('/admin/categories')
+    revalidatePath('/master-data/categories')
     return { success: true }
 }
 
 export async function updateCategory(id: number, formData: FormData) {
     const name = formData.get('name') as string
     const rhk_label = formData.get('rhk_label') as string
-    const is_teaching = formData.get('is_teaching') === 'true'
+    const rawIsTeaching = formData.get('is_teaching')
+    const is_teaching = rawIsTeaching === 'true' || rawIsTeaching === 'on' || rawIsTeaching === '1'
 
     await prisma.reportCategory.update({
         where: { id: BigInt(id) },
@@ -82,6 +89,7 @@ export async function updateCategory(id: number, formData: FormData) {
     })
 
     revalidatePath('/admin/categories')
+    revalidatePath('/master-data/categories')
     return { success: true }
 }
 

@@ -167,7 +167,7 @@ export default function CategoriesClient({ allCategories, userOnlyCategories }: 
                                     name="is_teaching"
                                     id="is_teaching"
                                     value="true"
-                                    defaultChecked={editingCategory?.is_teaching}
+                                    defaultChecked={Boolean(editingCategory ? (editingCategory.is_teaching ?? (editingCategory as any).isTeaching) : false)}
                                     className="h-5 w-5 rounded-lg border-blue-200 text-blue-600 focus:ring-blue-500"
                                 />
                                 <label htmlFor="is_teaching" className="flex-1 text-sm font-bold text-blue-900">
