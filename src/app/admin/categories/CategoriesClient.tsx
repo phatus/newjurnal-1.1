@@ -145,7 +145,7 @@ export default function AdminCategoriesClient({ initialCategories }: { initialCa
                                 <input
                                     name="name"
                                     required
-                                    defaultValue={editingCategory.name}
+                                    defaultValue={editingCategory?.name || ""}
                                     className="w-full h-12 px-5 rounded-xl bg-slate-50 border-none font-bold text-slate-700 focus:ring-2 focus:ring-blue-500"
                                     placeholder="Contoh: Pembelajaran"
                                 />
@@ -155,7 +155,7 @@ export default function AdminCategoriesClient({ initialCategories }: { initialCa
                                 <input
                                     name="rhk_label"
                                     required
-                                    defaultValue={editingCategory.rhk_label}
+                                    defaultValue={editingCategory?.rhk_label || (editingCategory as any)?.rhkLabel || ""}
                                     className="w-full h-12 px-5 rounded-xl bg-slate-50 border-none font-bold text-slate-700 focus:ring-2 focus:ring-blue-500"
                                     placeholder="Contoh: Terlaksananya pembelajaran..."
                                 />
@@ -164,7 +164,7 @@ export default function AdminCategoriesClient({ initialCategories }: { initialCa
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Jenis Layanan</label>
                                 <select
                                     name="is_teaching"
-                                    defaultValue={editingCategory.is_teaching.toString()}
+                                    defaultValue={String(editingCategory?.is_teaching ?? (editingCategory as any)?.isTeaching ?? false)}
                                     className="w-full h-12 px-5 rounded-xl bg-slate-50 border-none font-bold text-slate-700 focus:ring-2 focus:ring-blue-500"
                                 >
                                     <option value="true">Jurnal Mengajar (KBM)</option>
