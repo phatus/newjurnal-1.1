@@ -20,7 +20,7 @@ export default async function MasterDataPage() {
                 <p className="text-slate-500 mt-2 font-medium">Kelola kategori, daftar kelas, dan dasar pelaksanaan yang Anda gunakan untuk pencatatan harian.</p>
             </div>
 
-            <div className="max-w-5xl mx-auto w-full px-6 sm:px-10 mt-10">
+            <div className="max-w-[1600px] mx-auto w-full px-6 sm:px-10 mt-10">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {[
                         {

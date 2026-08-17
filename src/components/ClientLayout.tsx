@@ -39,7 +39,7 @@ export default function ClientLayout({ children, user, profile }: ClientLayoutPr
             <div className="flex min-h-screen">
                 <Sidebar user={user} profile={profile} isCollapsed={false} toggleCollapse={() => { }} />
                 <main className={cn("flex-1 min-w-0 pb-24 sm:pb-0 transition-all duration-300", user && "sm:pl-72")}>
-                    <div className="max-w-7xl mx-auto h-full p-4 sm:p-6 lg:p-8">
+                    <div className="max-w-[1600px] mx-auto h-full p-4 sm:p-6 lg:p-8">
                         {children}
                     </div>
                 </main>
@@ -60,7 +60,7 @@ export default function ClientLayout({ children, user, profile }: ClientLayoutPr
                 "flex-1 min-w-0 pb-24 sm:pb-0 transition-all duration-300 ease-in-out",
                 user && (isCollapsed ? "sm:pl-20" : "sm:pl-72")
             )}>
-                <div className="max-w-7xl mx-auto h-full p-4 sm:p-6 lg:p-8">
+                <div className="max-w-[1600px] mx-auto h-full p-4 sm:p-6 lg:p-8">
                     {children}
                 </div>
             </main>

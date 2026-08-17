@@ -41,7 +41,7 @@ export default async function CreateActivityPage(props: {
                 </div>
             </div>
 
-            <div className="max-w-5xl mx-auto w-full px-6 sm:px-10 mt-10">
+            <div className="max-w-[1600px] mx-auto w-full px-6 sm:px-10 mt-10">
                 {message && (
                     <div className={cn(
                         "mb-8 p-6 rounded-[2rem] border flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500",

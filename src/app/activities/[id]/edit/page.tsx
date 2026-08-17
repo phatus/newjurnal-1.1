@@ -57,7 +57,7 @@ export default async function EditActivityPage(props: {
                 </div>
             </div>
 
-            <div className="max-w-5xl mx-auto w-full px-6 sm:px-10 mt-10">
+            <div className="max-w-[1600px] mx-auto w-full px-6 sm:px-10 mt-10">
                 <ActivityForm
                     categories={categories}
                     classes={classes}

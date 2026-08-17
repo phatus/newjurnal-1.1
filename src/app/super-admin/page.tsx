@@ -40,7 +40,7 @@ export default async function SuperAdminPage(props: {
     return (
         <div className="flex flex-col min-h-screen bg-slate-50 pb-10">
             <div className="bg-slate-900 text-white px-6 sm:px-10 py-8">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 max-w-7xl mx-auto">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 max-w-[1600px] mx-auto">
                     <div className="space-y-1">
                         <div className="flex items-center gap-2">
                             <Globe size={14} className="text-amber-400" />
@@ -60,7 +60,7 @@ export default async function SuperAdminPage(props: {
                 </div>
             </div>
 
-            <div className="max-w-7xl mx-auto w-full px-6 sm:px-10 -mt-6">
+            <div className="max-w-[1600px] mx-auto w-full px-6 sm:px-10 -mt-6">
                 {/* Stat Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
                     {statCards.map((stat) => (
