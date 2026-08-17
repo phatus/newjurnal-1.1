@@ -15,8 +15,8 @@ export default function ReportsClient({ reportTypes }: { reportTypes: Array<{ id
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    const [month, setMonth] = useState(searchParams.get("month") || new Date().getMonth().toString());
-    const [year, setYear] = useState(searchParams.get("year") || new Date().getFullYear().toString());
+    const [month, setMonth] = useState((searchParams && searchParams.get("month")) || new Date().getMonth().toString());
+    const [year, setYear] = useState((searchParams && searchParams.get("year")) || new Date().getFullYear().toString());
 
     function handleDownload(id: string) {
         router.push(`/reports/${id}?month=${month}&year=${year}`);

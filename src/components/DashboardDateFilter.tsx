@@ -12,7 +12,7 @@ export default function DashboardDateFilter({ selectedDate }: { selectedDate: st
     
     const handleDateChange = (newDate: Date) => {
         const dateStr = newDate.toISOString().split('T')[0]
-        const params = new URLSearchParams(searchParams.toString())
+        const params = new URLSearchParams(searchParams ? searchParams.toString() : '')
         params.set('date', dateStr)
         router.push(`/?${params.toString()}`)
     }
