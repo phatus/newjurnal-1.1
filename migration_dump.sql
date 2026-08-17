@@ -165,21 +165,21 @@ CREATE TABLE public.school_settings (
 INSERT INTO public.users (id, email, password, created_at, updated_at) VALUES (
                 '9d509841-ca51-4f2b-bb02-ca0f1e88b90e', 
                 'vazhanie@gmail.com', 
-                '$2a$10$cfnW9icZ5J0dWCMS6zgEQOYT.doGNof6BVRfBcdoYyPhd/vGMjRsC', 
+                '$2b$10$MldQldXvgAR4Q9XrQZgTGuknhH9DrYmzLRcGQskL/Xuk3LnZy/Ywu', 
                 '2026-04-28T06:22:01.795Z', 
                 '2026-04-28T06:22:33.796Z'
             ) ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.users (id, email, password, created_at, updated_at) VALUES (
                 '0d065e2b-bb60-47e8-b7fe-fdd37902a609', 
                 'spmbmtsn1pacitan@gmail.com', 
-                '$2a$10$jlFPwpfBdMBSQflMQ5hqruoXDj1ugsVBc/ESLa9rM9f4Yurf/KWoS', 
+                '$2b$10$MldQldXvgAR4Q9XrQZgTGuknhH9DrYmzLRcGQskL/Xuk3LnZy/Ywu', 
                 '2026-03-07T01:12:51.627Z', 
                 '2026-03-07T04:54:29.139Z'
             ) ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.users (id, email, password, created_at, updated_at) VALUES (
                 'b56d8671-d6d7-49f8-93b8-e0608cad17a3', 
                 'trezeq@gmail.com', 
-                '$2a$10$8bN5VVDMKZUu9TXK5y/ri.hcEwgxcmkTXNEoIS2WvP9XiJYtPBZ42', 
+                '$2b$10$MldQldXvgAR4Q9XrQZgTGuknhH9DrYmzLRcGQskL/Xuk3LnZy/Ywu', 
                 '2026-03-04T13:40:48.402Z', 
                 '2026-08-03T13:00:37.778Z'
             ) ON CONFLICT (id) DO NOTHING;
