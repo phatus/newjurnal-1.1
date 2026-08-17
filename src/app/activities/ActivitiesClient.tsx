@@ -222,16 +222,16 @@ export default function ActivitiesClient({
                 ) : (
                     <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
                         {/* Desktop View (Table) */}
-                        <div className="hidden md:block overflow-x-auto">
+                        <div className="hidden lg:block overflow-x-auto relative">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                         <th className="p-4 pl-6 whitespace-nowrap">Tanggal</th>
                                         <th className="p-4">Kategori</th>
-                                        <th className="p-4 min-w-[250px]">Kegiatan</th>
+                                        <th className="p-4 min-w-[200px]">Kegiatan</th>
                                         <th className="p-4">Rincian</th>
                                         <th className="p-4 text-center">Bukti</th>
-                                        <th className="p-4 pr-6 text-right">Aksi</th>
+                                        <th className="p-4 pr-6 text-right sticky right-0 bg-slate-50 z-10 border-l border-slate-200/50 shadow-xs">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="text-sm font-medium text-slate-700 divide-y divide-slate-100">
@@ -240,7 +240,7 @@ export default function ActivitiesClient({
 
                                         return groupedActivities[date].map((act: Activity, index: number) => (
                                             <tr key={act.id} className={cn(
-                                                "hover:bg-slate-50/50 transition-colors group",
+                                                "hover:bg-slate-50/50 transition-colors group relative",
                                                 index === 0 ? "border-t-2 border-slate-100" : ""
                                             )}>
                                                 <td className="p-4 pl-6 whitespace-nowrap align-top">
@@ -307,7 +307,7 @@ export default function ActivitiesClient({
                                                         <span className="text-slate-300 inline-block mt-2">-</span>
                                                     )}
                                                 </td>
-                                                <td className="p-4 pr-6 align-top">
+                                                <td className="p-4 pr-6 align-top text-right sticky right-0 bg-white group-hover:bg-slate-50/95 transition-colors border-l border-slate-100 z-10 shadow-2xs">
                                                     <div className="flex items-center justify-end gap-2">
                                                         <Link
                                                             href={`/activities/${act.id}/edit`}
@@ -336,7 +336,7 @@ export default function ActivitiesClient({
                         </div>
 
                         {/* Mobile View (Cards) */}
-                        <div className="block md:hidden">
+                        <div className="block lg:hidden">
                             {sortedDates.map((date) => {
                                 const { dateStr, dayStr } = formatActivityDate(date, false);
 
