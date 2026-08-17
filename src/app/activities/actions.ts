@@ -34,9 +34,19 @@ function serializeBase(base: any) {
 
 function serializeActivity(act: any) {
     if (!act) return null;
+    const rawDate = act.activityDate || act.activity_date;
+    let formattedDate = '';
+    if (rawDate) {
+        if (rawDate instanceof Date) {
+            formattedDate = rawDate.toISOString().split('T')[0];
+        } else {
+            formattedDate = String(rawDate).split('T')[0];
+        }
+    }
     return {
         ...act,
         id: Number(act.id),
+        activity_date: formattedDate,
         categoryId: Number(act.categoryId),
         implementationBasisId: act.implementationBasisId ? Number(act.implementationBasisId) : null,
         category: act.category ? {

@@ -89,10 +89,40 @@ export default function ActivitiesClient({
         }
     }
 
+    // Safe date formatting helper to avoid 'Invalid Date' errors
+    function formatActivityDate(dateVal: string, isShortMonth = true) {
+        if (!dateVal || dateVal === 'undefined') return { dateStr: '-', dayStr: '-' };
+        const cleanStr = String(dateVal).split('T')[0];
+        const parts = cleanStr.split('-').map(Number);
+        if (parts.length === 3 && !parts.some(isNaN)) {
+            const [year, month, day] = parts;
+            const d = new Date(year, month - 1, day);
+            if (!isNaN(d.getTime())) {
+                const dateStr = d.toLocaleDateString('id-ID', {
+                    day: isShortMonth ? '2-digit' : 'numeric',
+                    month: isShortMonth ? 'short' : 'long',
+                    year: 'numeric'
+                });
+                const dayStr = d.toLocaleDateString('id-ID', { weekday: 'long' });
+                return { dateStr, dayStr };
+            }
+        }
+        return { dateStr: cleanStr, dayStr: '-' };
+    }
+
     // Group activities by date
     const groupedActivities = useMemo(() => {
         return filteredActivities.reduce((acc: Record<string, Activity[]>, act: Activity) => {
-            const date = act.activity_date;
+            const rawDate = act.activity_date || (act as any).activityDate;
+            let date = '';
+            if (rawDate) {
+                if (rawDate instanceof Date) {
+                    date = rawDate.toISOString().split('T')[0];
+                } else {
+                    date = String(rawDate).split('T')[0];
+                }
+            }
+            if (!date) return acc;
             if (!acc[date]) acc[date] = [];
             acc[date].push(act);
             return acc;
@@ -206,9 +236,7 @@ export default function ActivitiesClient({
                                 </thead>
                                 <tbody className="text-sm font-medium text-slate-700 divide-y divide-slate-100">
                                     {sortedDates.flatMap((date) => {
-                                        const dateObj = new Date(date + 'T00:00:00');
-                                        const dateStr = dateObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-                                        const dayStr = dateObj.toLocaleDateString('id-ID', { weekday: 'long' });
+                                        const { dateStr, dayStr } = formatActivityDate(date, true);
 
                                         return groupedActivities[date].map((act: Activity, index: number) => (
                                             <tr key={act.id} className={cn(
@@ -308,9 +336,7 @@ export default function ActivitiesClient({
                         {/* Mobile View (Cards) */}
                         <div className="block md:hidden">
                             {sortedDates.map((date) => {
-                                const dateObj = new Date(date + 'T00:00:00');
-                                const dateStr = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-                                const dayStr = dateObj.toLocaleDateString('id-ID', { weekday: 'long' });
+                                const { dateStr, dayStr } = formatActivityDate(date, false);
 
                                 return (
                                     <div key={date}>
