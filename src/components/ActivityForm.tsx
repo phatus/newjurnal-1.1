@@ -153,16 +153,20 @@ export default function ActivityForm({ categories, classes, bases, initialData, 
                             {errors.category_id && <p className="text-[10px] font-black text-red-500 uppercase tracking-widest ml-1">{errors.category_id}</p>}
                             {selectedCategory && (
                                 <div className={cn(
-                                    "flex flex-col sm:flex-row sm:items-center gap-2 p-4 rounded-2xl text-xs font-bold animate-in fade-in duration-300",
-                                    isTeaching ? "bg-amber-50 text-amber-900 border border-amber-200/60" : "bg-blue-50 text-blue-900 border border-blue-200/60"
+                                    "mt-3 p-4 rounded-2xl text-xs space-y-2.5 border animate-in fade-in duration-300 w-full overflow-hidden shadow-xs",
+                                    isTeaching ? "bg-amber-50/80 border-amber-200/80 text-amber-900" : "bg-blue-50/80 border-blue-200/80 text-blue-900"
                                 )}>
-                                    <div className="flex items-center gap-2 shrink-0 font-black uppercase tracking-wider">
-                                        {isTeaching ? <BookOpen size={16} className="text-amber-600" /> : <FileText size={16} className="text-blue-600" />}
-                                        <span>{isTeaching ? 'Kegiatan Belajar Mengajar (KBM)' : 'Kegiatan Non-KBM'}</span>
+                                    <div className="flex items-center gap-2 font-black text-[11px] uppercase tracking-wider">
+                                        {isTeaching ? <BookOpen size={15} className="text-amber-600 shrink-0" /> : <FileText size={15} className="text-blue-600 shrink-0" />}
+                                        <span className={isTeaching ? "text-amber-700" : "text-blue-700"}>
+                                            {isTeaching ? 'Kegiatan Belajar Mengajar (KBM)' : 'Kegiatan Non-KBM'}
+                                        </span>
                                     </div>
-                                    <div className="sm:ml-auto text-xs font-bold text-slate-800 bg-white/90 px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2">
-                                        <span className="font-black text-amber-600 uppercase tracking-widest text-[10px] shrink-0">Label RHK:</span>
-                                        <span className="text-slate-900 font-bold">{selectedCategory.rhk_label || (selectedCategory as any).rhkLabel || selectedCategory.name}</span>
+                                    <div className="pt-2 border-t border-slate-200/60">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Label RHK</p>
+                                        <p className="text-xs font-bold text-slate-800 mt-0.5 leading-relaxed break-words">
+                                            {selectedCategory.rhk_label || (selectedCategory as any).rhkLabel || selectedCategory.name}
+                                        </p>
                                     </div>
                                 </div>
                             )}
