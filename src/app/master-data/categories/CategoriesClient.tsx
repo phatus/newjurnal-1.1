@@ -106,7 +106,7 @@ export default function CategoriesClient({ allCategories, userOnlyCategories }: 
                                 </div>
                             </div>
 
-                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex gap-2">
                                 <button
                                     onClick={() => setEditingCategory(cat)}
                                     className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"

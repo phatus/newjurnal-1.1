@@ -308,21 +308,23 @@ export default function ActivitiesClient({
                                                     )}
                                                 </td>
                                                 <td className="p-4 pr-6 align-top">
-                                                    <div className="flex items-center justify-end gap-2 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                                                    <div className="flex items-center justify-end gap-2">
                                                         <Link
                                                             href={`/activities/${act.id}/edit`}
-                                                            className="w-9 h-9 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition-all shadow-sm"
-                                                            title="Edit"
+                                                            className="h-9 px-3 flex items-center gap-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200/60 hover:bg-amber-500 hover:text-white transition-all text-xs font-bold shadow-2xs shrink-0"
+                                                            title="Edit Kegiatan"
                                                         >
-                                                            <FileText size={16} />
+                                                            <FileText size={14} />
+                                                            <span>Edit</span>
                                                         </Link>
                                                         <button
                                                             onClick={() => handleDeleteClick(act.id)}
                                                             disabled={loadingId === act.id}
-                                                            className="w-9 h-9 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm disabled:opacity-50"
-                                                            title="Hapus"
+                                                            className="h-9 px-3 flex items-center gap-1.5 rounded-lg bg-red-50 text-red-600 border border-red-200/60 hover:bg-red-500 hover:text-white transition-all text-xs font-bold shadow-2xs disabled:opacity-50 shrink-0"
+                                                            title="Hapus Kegiatan"
                                                         >
-                                                            {loadingId === act.id ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
+                                                            {loadingId === act.id ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                                                            <span>Hapus</span>
                                                         </button>
                                                     </div>
                                                 </td>
