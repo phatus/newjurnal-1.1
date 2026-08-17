@@ -38,8 +38,8 @@ export default function ActivityForm({ categories, classes, bases, initialData, 
     );
     const [loading, setLoading] = useState(false);
 
-    const selectedCategory = categories.find(c => String(c.id) === selectedCategoryId);
-    const isTeaching = selectedCategory?.is_teaching || false;
+    const selectedCategory = categories.find(c => String(c.id) === String(selectedCategoryId));
+    const isTeaching = Boolean(selectedCategory?.is_teaching ?? (selectedCategory as any)?.isTeaching);
 
     const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -153,12 +153,17 @@ export default function ActivityForm({ categories, classes, bases, initialData, 
                             {errors.category_id && <p className="text-[10px] font-black text-red-500 uppercase tracking-widest ml-1">{errors.category_id}</p>}
                             {selectedCategory && (
                                 <div className={cn(
-                                    "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest animate-in fade-in duration-300",
-                                    isTeaching ? "bg-amber-50 text-amber-600 border border-amber-100" : "bg-blue-50 text-blue-600 border border-blue-100"
+                                    "flex flex-col sm:flex-row sm:items-center gap-2 p-4 rounded-2xl text-xs font-bold animate-in fade-in duration-300",
+                                    isTeaching ? "bg-amber-50 text-amber-900 border border-amber-200/60" : "bg-blue-50 text-blue-900 border border-blue-200/60"
                                 )}>
-                                    {isTeaching ? <BookOpen size={14} /> : <FileText size={14} />}
-                                    {isTeaching ? 'Kegiatan Belajar Mengajar (KBM)' : 'Kegiatan Non-KBM'}
-                                    <span className="ml-auto text-[10px] opacity-60">RHK: {selectedCategory.rhk_label}</span>
+                                    <div className="flex items-center gap-2 shrink-0 font-black uppercase tracking-wider">
+                                        {isTeaching ? <BookOpen size={16} className="text-amber-600" /> : <FileText size={16} className="text-blue-600" />}
+                                        <span>{isTeaching ? 'Kegiatan Belajar Mengajar (KBM)' : 'Kegiatan Non-KBM'}</span>
+                                    </div>
+                                    <div className="sm:ml-auto text-xs font-bold text-slate-800 bg-white/90 px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2">
+                                        <span className="font-black text-amber-600 uppercase tracking-widest text-[10px] shrink-0">Label RHK:</span>
+                                        <span className="text-slate-900 font-bold">{selectedCategory.rhk_label || (selectedCategory as any).rhkLabel || selectedCategory.name}</span>
+                                    </div>
                                 </div>
                             )}
                         </div>
