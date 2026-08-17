@@ -46,15 +46,21 @@ function serializeActivity(act: any) {
             formattedDate = String(rawDate).split('T')[0];
         }
     }
+    const catId = act.categoryId ?? act.category_id ?? (act.category?.id);
+    const basisId = act.implementationBasisId ?? act.implementation_basis_id ?? (act.implementationBasis?.id) ?? (act.basis?.id);
+
     return {
         ...act,
-        id: Number(act.id),
+        id: String(act.id),
         activity_date: formattedDate,
-        categoryId: Number(act.categoryId),
-        implementationBasisId: act.implementationBasisId ? Number(act.implementationBasisId) : null,
+        category_id: catId ? String(catId) : '',
+        categoryId: catId ? Number(catId) : null,
+        implementation_basis_id: basisId ? String(basisId) : '',
+        implementationBasisId: basisId ? Number(basisId) : null,
         category: act.category ? {
             name: act.category.name,
-            is_teaching: act.category.isTeaching,
+            is_teaching: Boolean(act.category.isTeaching ?? act.category.is_teaching),
+            rhk_label: act.category.rhkLabel || act.category.rhk_label || act.category.name,
             ...act.category,
             id: Number(act.category.id)
         } : null,
@@ -68,7 +74,7 @@ function serializeActivity(act: any) {
             id: Number(act.basis.id)
         } : null),
         classes: act.classRooms ? act.classRooms.map((c: any) => ({
-            class_room_id: Number(c.classRoomId),
+            class_room_id: Number(c.classRoomId ?? c.class_room_id),
             class: c.classRoom ? {
                 id: Number(c.classRoom.id),
                 name: c.classRoom.name

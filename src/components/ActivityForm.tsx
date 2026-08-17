@@ -32,9 +32,14 @@ interface ActivityFormProps {
 
 export default function ActivityForm({ categories, classes, bases, initialData, action }: ActivityFormProps) {
     const router = useRouter();
-    const [selectedCategoryId, setSelectedCategoryId] = useState(initialData?.category_id?.toString() || "");
+    const [selectedCategoryId, setSelectedCategoryId] = useState(
+        initialData?.category_id?.toString() ||
+        (initialData as any)?.categoryId?.toString() ||
+        (initialData?.category as any)?.id?.toString() ||
+        ""
+    );
     const [selectedClassIds, setSelectedClassIds] = useState<string[]>(
-        initialData?.classes?.map((c) => c.class?.id?.toString()).filter((id): id is string => typeof id === 'string') || []
+        initialData?.classes?.map((c) => (c.class?.id ?? (c as any).class_room_id)?.toString()).filter((id): id is string => typeof id === 'string') || []
     );
     const [loading, setLoading] = useState(false);
 
@@ -193,7 +198,12 @@ export default function ActivityForm({ categories, classes, bases, initialData, 
                             <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                             <select
                                 name="implementation_basis_id"
-                                defaultValue={initialData?.implementation_basis_id || ""}
+                                defaultValue={
+                                    initialData?.implementation_basis_id?.toString() ||
+                                    (initialData as any)?.implementationBasisId?.toString() ||
+                                    (initialData?.basis as any)?.id?.toString() ||
+                                    ""
+                                }
                                 className="w-full h-14 pl-12 pr-4 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-amber-500 transition-all font-bold text-slate-700 appearance-none"
                             >
                                 <option value="">Pilih Dasar Pelaksanaan (Opsional)...</option>
