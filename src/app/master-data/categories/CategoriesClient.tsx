@@ -102,26 +102,26 @@ export default function CategoriesClient({ allCategories, userOnlyCategories }: 
                                             <span className="text-[10px] font-black bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full uppercase">Sistem</span>
                                         )}
                                     </div>
-                                    <p className="text-xs text-slate-500 font-bold mt-0.5 tracking-wide">RHK: {cat.rhk_label || '-'}</p>
+                                    <p className="text-xs text-slate-500 font-bold mt-0.5 tracking-wide">RHK: {cat.rhk_label || (cat as any).rhkLabel || cat.name}</p>
                                 </div>
                             </div>
 
-                            {isUserOwned && (
-                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                        onClick={() => setEditingCategory(cat)}
-                                        className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
-                                    >
-                                        <Edit2 size={18} />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(cat.id)}
-                                        className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
-                                </div>
-                            )}
+                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                    onClick={() => setEditingCategory(cat)}
+                                    className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                                    title="Edit Kategori & RHK"
+                                >
+                                    <Edit2 size={18} />
+                                </button>
+                                <button
+                                    onClick={() => handleDelete(cat.id)}
+                                    className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                                    title="Hapus Kategori"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                            </div>
                         </div>
                     );
                 })}

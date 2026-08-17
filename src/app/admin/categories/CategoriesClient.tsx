@@ -208,7 +208,7 @@ export default function AdminCategoriesClient({ initialCategories }: { initialCa
                                             <span className="font-bold text-slate-900">{cat.name}</span>
                                         </div>
                                     </td>
-                                    <td className="px-8 py-5 font-bold text-slate-500">{cat.rhk_label}</td>
+                                    <td className="px-8 py-5 font-bold text-slate-500">{cat.rhk_label || (cat as any).rhkLabel || cat.name}</td>
                                     <td className="px-8 py-5">
                                         {cat.is_teaching ? (
                                             <span className="inline-flex items-center px-3 py-1 rounded-full bg-green-50 text-green-700 text-[10px] font-black uppercase tracking-widest border border-green-100">Aktif</span>

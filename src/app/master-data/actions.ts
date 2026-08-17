@@ -10,7 +10,8 @@ function serializeCategory(cat: any) {
     if (!cat) return null;
     return {
         ...cat,
-        id: Number(cat.id)
+        id: Number(cat.id),
+        rhk_label: cat.rhkLabel || cat.rhk_label || cat.name
     };
 }
 
@@ -98,7 +99,7 @@ export async function updateCategory(id: number, formData: FormData) {
     const { name, rhk_label, is_teaching } = validation.data;
 
     await prisma.reportCategory.update({
-        where: { id: BigInt(id), userId: user.id },
+        where: { id: BigInt(id) },
         data: {
             name,
             rhkLabel: rhk_label,
@@ -107,6 +108,7 @@ export async function updateCategory(id: number, formData: FormData) {
     });
 
     revalidatePath('/master-data/categories');
+    revalidatePath('/admin/categories');
 }
 
 export async function deleteCategory(id: number) {
@@ -115,10 +117,11 @@ export async function deleteCategory(id: number) {
     if (!user || !user.id) throw new Error("Unauthorized");
 
     await prisma.reportCategory.delete({
-        where: { id: BigInt(id), userId: user.id }
+        where: { id: BigInt(id) }
     });
 
     revalidatePath('/master-data/categories');
+    revalidatePath('/admin/categories');
 }
 
 // --- Class Rooms ---
