@@ -21,8 +21,13 @@ function serializeSchedule(s: any) {
     if (!s) return null;
     return {
         ...s,
-        categoryId: s.categoryId ? Number(s.categoryId) : null,
-        implementationBasisId: s.implementationBasisId ? Number(s.implementationBasisId) : null,
+        category_id: s.categoryId ? Number(s.categoryId) : null,
+        implementation_basis_id: s.implementationBasisId ? Number(s.implementationBasisId) : null,
+        day_of_week: s.dayOfWeek,
+        user_id: s.userId,
+        school_id: s.schoolId,
+        teaching_hours: s.teachingHours ? String(s.teachingHours) : null,
+        is_active: s.isActive,
         report_categories: s.category ? {
             name: s.category.name,
             is_teaching: s.category.isTeaching
