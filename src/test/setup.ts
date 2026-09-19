@@ -7,13 +7,12 @@ vi.mock('next/navigation', () => ({
     revalidatePath: vi.fn(),
 }))
 
-// Mock Supabase
-vi.mock('@/utils/supabase/server', () => ({
-    createClient: vi.fn(),
-}))
-
-vi.mock('@/utils/supabase/admin', () => ({
-    createAdminClient: vi.fn(),
+// Mock Auth
+vi.mock('@/auth', () => ({
+    auth: vi.fn(),
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+    handlers: { GET: vi.fn(), POST: vi.fn() },
 }))
 
 // Mock sonner toast

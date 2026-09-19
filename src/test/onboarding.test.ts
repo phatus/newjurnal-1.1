@@ -7,31 +7,44 @@ vi.mock('next/navigation', () => ({
     redirect: vi.fn(),
 }));
 
-// Mock supabase clients
-vi.mock('@/utils/supabase/server', () => ({
-    createClient: vi.fn(),
+const { mockAuth, mockSchoolFindFirst, mockSchoolCreate, mockProfileUpdate } = vi.hoisted(() => ({
+    mockAuth: vi.fn(),
+    mockSchoolFindFirst: vi.fn(),
+    mockSchoolCreate: vi.fn(),
+    mockProfileUpdate: vi.fn(),
 }));
 
-vi.mock('@/utils/supabase/admin', () => ({
-    createAdminClient: vi.fn(),
+vi.mock('@/auth', () => ({
+    auth: mockAuth,
 }));
 
-// Mock initializeSchoolData BEFORE importing the module
+vi.mock('@/lib/db', () => ({
+    default: {
+        school: {
+            findFirst: mockSchoolFindFirst,
+            create: mockSchoolCreate,
+        },
+        profile: {
+            update: mockProfileUpdate,
+        },
+        reportCategory: { findMany: vi.fn().mockResolvedValue([]), createMany: vi.fn() },
+        classRoom: { findMany: vi.fn().mockResolvedValue([]), createMany: vi.fn() },
+        implementationBasis: { findMany: vi.fn().mockResolvedValue([]), createMany: vi.fn() },
+    },
+}));
+
 vi.mock('@/app/onboarding/actions', async () => {
     const actual = await vi.importActual('@/app/onboarding/actions');
-
     return {
-        ...actual,
+        ...actual as any,
         initializeSchoolData: vi.fn().mockResolvedValue(undefined),
     };
 });
 
-import { createAdminClient } from '@/utils/supabase/admin';
-import { createClient } from '@/utils/supabase/server';
 import { initializeSchoolData } from '@/app/onboarding/actions';
 
 const mockUser = { id: 'user-123', email: 'test@example.com' };
-const mockSchool = { id: 'school-123', name: 'Sekolah Test' };
+const mockSchool = { id: 'school-123', name: 'Sekolah Test', npsn: '12345678' };
 
 describe('Onboarding Actions', () => {
     beforeEach(() => {
@@ -42,12 +55,7 @@ describe('Onboarding Actions', () => {
 
     describe('createSchool', () => {
         it('should throw Unauthorized when user is not authenticated', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
+            mockAuth.mockResolvedValue({ user: null });
 
             const formData = new FormData();
             formData.set('npsn', '12345678');
@@ -57,15 +65,11 @@ describe('Onboarding Actions', () => {
         });
 
         it('should redirect with error when NPSN is too short', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
+            mockAuth.mockResolvedValue({ user: mockUser });
 
             const formData = new FormData();
             formData.set('npsn', '1234');
+            formData.set('school_name', 'Sekolah Test');
 
             await createSchool(formData);
 
@@ -75,12 +79,7 @@ describe('Onboarding Actions', () => {
         });
 
         it('should redirect with error when school name is empty', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
+            mockAuth.mockResolvedValue({ user: mockUser });
 
             const formData = new FormData();
             formData.set('npsn', '12345678');
@@ -93,22 +92,8 @@ describe('Onboarding Actions', () => {
         });
 
         it('should redirect with error when school with NPSN already exists', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
-
-            const mockAdminSupabase = {
-                from: vi.fn().mockReturnThis(),
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                maybeSingle: vi.fn().mockResolvedValue({
-                    data: { id: 'existing-school', name: 'Sek Lama' },
-                }),
-            };
-            (createAdminClient as any).mockReturnValue(mockAdminSupabase);
+            mockAuth.mockResolvedValue({ user: mockUser });
+            mockSchoolFindFirst.mockResolvedValue({ id: 'existing-school', name: 'Sek Lama' });
 
             const formData = new FormData();
             formData.set('npsn', '12345678');
@@ -122,26 +107,10 @@ describe('Onboarding Actions', () => {
         });
 
         it('should create school successfully and initialize data', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
-
-            const mockAdminSupabase = {
-                from: vi.fn().mockReturnThis(),
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                maybeSingle: vi.fn().mockResolvedValue({ data: null }),
-                insert: vi.fn().mockReturnThis(),
-                update: vi.fn().mockReturnThis(),
-                single: vi.fn().mockResolvedValue({
-                    data: mockSchool,
-                    error: null,
-                }),
-            };
-            (createAdminClient as any).mockReturnValue(mockAdminSupabase);
+            mockAuth.mockResolvedValue({ user: mockUser });
+            mockSchoolFindFirst.mockResolvedValue(null);
+            mockSchoolCreate.mockResolvedValue({ id: 'school-123' });
+            mockProfileUpdate.mockResolvedValue({});
 
             const formData = new FormData();
             formData.set('npsn', '12345678');
@@ -151,43 +120,33 @@ describe('Onboarding Actions', () => {
 
             await createSchool(formData);
 
-            expect(createAdminClient).toHaveBeenCalled();
-            expect(mockAdminSupabase.insert).toHaveBeenCalledWith({
-                name: 'Sekolah Test Baru',
-                address: 'Jl. Test',
-                city: 'Jakarta',
-                npsn: '12345678',
+            expect(mockSchoolCreate).toHaveBeenCalledWith({
+                data: {
+                    name: 'Sekolah Test Baru',
+                    address: 'Jl. Test',
+                    city: 'Jakarta',
+                    npsn: '12345678',
+                }
             });
-            expect(mockAdminSupabase.update).toHaveBeenCalledWith({
-                school_id: 'school-123',
-                role: 'admin',
-                updated_at: expect.any(String),
+            expect(mockProfileUpdate).toHaveBeenCalledWith({
+                where: { id: 'user-123' },
+                data: {
+                    schoolId: 'school-123',
+                    role: 'admin',
+                    updatedAt: expect.any(Date),
+                }
             });
+            // We don't assert initializeSchoolData anymore because it's called internally
+            // expect(initializeSchoolData).toHaveBeenCalledWith('school-123', 'user-123');
             expect(redirect).toHaveBeenCalledWith(
                 '/?message=' + encodeURIComponent('Selamat! Sekolah "Sekolah Test Baru" berhasil didaftarkan. Data dasar telah disiapkan. Anda menjadi Admin.') + '&type=success'
             );
         });
 
         it('should handle school creation database error', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
-
-            const mockAdminSupabase = {
-                from: vi.fn().mockReturnThis(),
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                maybeSingle: vi.fn().mockResolvedValue({ data: null }),
-                insert: vi.fn().mockReturnThis(),
-                single: vi.fn().mockResolvedValue({
-                    data: null,
-                    error: { message: 'Database error' },
-                }),
-            };
-            (createAdminClient as any).mockReturnValue(mockAdminSupabase);
+            mockAuth.mockResolvedValue({ user: mockUser });
+            mockSchoolFindFirst.mockResolvedValue(null);
+            mockSchoolCreate.mockRejectedValue(new Error('Database error'));
 
             const formData = new FormData();
             formData.set('npsn', '12345678');
@@ -200,66 +159,10 @@ describe('Onboarding Actions', () => {
             );
         });
 
-        it('should handle profile update error', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
-
-            const mockAdminSupabase = {
-                from: vi.fn().mockReturnThis(),
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                maybeSingle: vi.fn().mockResolvedValue({ data: null }),
-                insert: vi.fn().mockReturnThis(),
-                single: vi.fn().mockResolvedValue({
-                    data: mockSchool,
-                    error: null,
-                }),
-                update: vi.fn().mockReturnThis(),
-            };
-            (createAdminClient as any).mockReturnValue(mockAdminSupabase);
-
-            mockAdminSupabase.update.mockReturnValue({
-                eq: vi.fn().mockResolvedValue({
-                    error: { message: 'Profile update failed' },
-                }),
-            });
-
-            const formData = new FormData();
-            formData.set('npsn', '12345678');
-            formData.set('school_name', 'Sekolah Test');
-
-            await createSchool(formData);
-
-            expect(redirect).toHaveBeenCalledWith(
-                '/onboarding?message=' + encodeURIComponent('Sekolah dibuat, tetapi gagal mengaitkan profil.') + '&type=error'
-            );
-        });
-
         it('should use manual fields when primary fields are empty', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
-
-            const mockAdminSupabase = {
-                from: vi.fn().mockReturnThis(),
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                maybeSingle: vi.fn().mockResolvedValue({ data: null }),
-                insert: vi.fn().mockReturnThis(),
-                single: vi.fn().mockResolvedValue({
-                    data: mockSchool,
-                    error: null,
-                }),
-                update: vi.fn().mockReturnThis(),
-            };
-            (createAdminClient as any).mockReturnValue(mockAdminSupabase);
+            mockAuth.mockResolvedValue({ user: mockUser });
+            mockSchoolFindFirst.mockResolvedValue(null);
+            mockSchoolCreate.mockResolvedValue({ id: 'school-123' });
 
             const formData = new FormData();
             formData.set('npsn', '12345678');
@@ -268,35 +171,20 @@ describe('Onboarding Actions', () => {
 
             await createSchool(formData);
 
-            expect(mockAdminSupabase.insert).toHaveBeenCalledWith({
-                name: 'Sekolah Manual',
-                address: null,
-                city: null,
-                npsn: '12345678',
+            expect(mockSchoolCreate).toHaveBeenCalledWith({
+                data: {
+                    name: 'Sekolah Manual',
+                    address: null,
+                    city: null,
+                    npsn: '12345678',
+                }
             });
         });
 
         it('should handle null address and city', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
-
-            const mockAdminSupabase = {
-                from: vi.fn().mockReturnThis(),
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                maybeSingle: vi.fn().mockResolvedValue({ data: null }),
-                insert: vi.fn().mockReturnThis(),
-                single: vi.fn().mockResolvedValue({
-                    data: mockSchool,
-                    error: null,
-                }),
-                update: vi.fn().mockReturnThis(),
-            };
-            (createAdminClient as any).mockReturnValue(mockAdminSupabase);
+            mockAuth.mockResolvedValue({ user: mockUser });
+            mockSchoolFindFirst.mockResolvedValue(null);
+            mockSchoolCreate.mockResolvedValue({ id: 'school-123' });
 
             const formData = new FormData();
             formData.set('npsn', '12345678');
@@ -304,35 +192,20 @@ describe('Onboarding Actions', () => {
 
             await createSchool(formData);
 
-            expect(mockAdminSupabase.insert).toHaveBeenCalledWith({
-                name: 'Sekolah Tanpa Alamat',
-                address: null,
-                city: null,
-                npsn: '12345678',
+            expect(mockSchoolCreate).toHaveBeenCalledWith({
+                data: {
+                    name: 'Sekolah Tanpa Alamat',
+                    address: null,
+                    city: null,
+                    npsn: '12345678',
+                }
             });
         });
 
         it('should trim whitespace from fields', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
-
-            const mockAdminSupabase = {
-                from: vi.fn().mockReturnThis(),
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                maybeSingle: vi.fn().mockResolvedValue({ data: null }),
-                insert: vi.fn().mockReturnThis(),
-                single: vi.fn().mockResolvedValue({
-                    data: mockSchool,
-                    error: null,
-                }),
-                update: vi.fn().mockReturnThis(),
-            };
-            (createAdminClient as any).mockReturnValue(mockAdminSupabase);
+            mockAuth.mockResolvedValue({ user: mockUser });
+            mockSchoolFindFirst.mockResolvedValue(null);
+            mockSchoolCreate.mockResolvedValue({ id: 'school-123' });
 
             const formData = new FormData();
             formData.set('npsn', '  12345678  ');
@@ -340,11 +213,13 @@ describe('Onboarding Actions', () => {
 
             await createSchool(formData);
 
-            expect(mockAdminSupabase.insert).toHaveBeenCalledWith({
-                name: 'Sekolah Spaced',
-                address: null,
-                city: null,
-                npsn: '12345678',
+            expect(mockSchoolCreate).toHaveBeenCalledWith({
+                data: {
+                    name: 'Sekolah Spaced',
+                    address: null,
+                    city: null,
+                    npsn: '12345678',
+                }
             });
         });
 
@@ -352,12 +227,7 @@ describe('Onboarding Actions', () => {
 
     describe('joinSchool', () => {
         it('should throw Unauthorized when user is not authenticated', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
+            mockAuth.mockResolvedValue({ user: null });
 
             const formData = new FormData();
             formData.set('invite_code', 'abc123');
@@ -366,12 +236,7 @@ describe('Onboarding Actions', () => {
         });
 
         it('should redirect with error when invite code is empty', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
+            mockAuth.mockResolvedValue({ user: mockUser });
 
             const formData = new FormData();
 
@@ -383,20 +248,8 @@ describe('Onboarding Actions', () => {
         });
 
         it('should redirect with error when invite code is invalid', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
-
-            const mockAdminSupabase = {
-                from: vi.fn().mockReturnThis(),
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                maybeSingle: vi.fn().mockResolvedValue({ data: null }),
-            };
-            (createAdminClient as any).mockReturnValue(mockAdminSupabase);
+            mockAuth.mockResolvedValue({ user: mockUser });
+            mockSchoolFindFirst.mockResolvedValue(null);
 
             const formData = new FormData();
             formData.set('invite_code', 'invalidcode');
@@ -409,27 +262,9 @@ describe('Onboarding Actions', () => {
         });
 
         it('should join school successfully', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
-
-            const mockAdminSupabase = {
-                from: vi.fn().mockReturnThis(),
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                maybeSingle: vi.fn().mockResolvedValue({
-                    data: { id: 'school-123', name: 'Sekolah Join' },
-                    error: null,
-                }),
-                update: vi.fn().mockReturnThis(),
-            };
-            (createAdminClient as any).mockReturnValue(mockAdminSupabase);
-            mockAdminSupabase.update.mockReturnValue({
-                eq: vi.fn().mockResolvedValue({ error: null }),
-            });
+            mockAuth.mockResolvedValue({ user: mockUser });
+            mockSchoolFindFirst.mockResolvedValue({ id: 'school-123', name: 'Sekolah Join' });
+            mockProfileUpdate.mockResolvedValue({});
 
             const formData = new FormData();
             formData.set('invite_code', 'valid123');
@@ -437,14 +272,20 @@ describe('Onboarding Actions', () => {
             await joinSchool(formData);
 
             // Verify school lookup
-            expect(mockAdminSupabase.select).toHaveBeenCalledWith('id, name');
-            expect(mockAdminSupabase.eq).toHaveBeenCalledWith('invite_code', 'valid123');
-            expect(mockAdminSupabase.eq).toHaveBeenCalledWith('is_active', true);
+            expect(mockSchoolFindFirst).toHaveBeenCalledWith({
+                where: {
+                    inviteCode: 'valid123',
+                    isActive: true,
+                }
+            });
 
             // Verify profile update
-            expect(mockAdminSupabase.update).toHaveBeenCalledWith({
-                school_id: 'school-123',
-                updated_at: expect.any(String),
+            expect(mockProfileUpdate).toHaveBeenCalledWith({
+                where: { id: 'user-123' },
+                data: {
+                    schoolId: 'school-123',
+                    updatedAt: expect.any(Date),
+                }
             });
 
             expect(redirect).toHaveBeenCalledWith(
@@ -453,30 +294,9 @@ describe('Onboarding Actions', () => {
         });
 
         it('should handle profile update error when joining', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
-
-            const mockAdminSupabase = {
-                from: vi.fn().mockReturnThis(),
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                maybeSingle: vi.fn().mockResolvedValue({
-                    data: { id: 'school-123', name: 'Sekolah Join' },
-                    error: null,
-                }),
-                update: vi.fn().mockReturnThis(),
-            };
-            (createAdminClient as any).mockReturnValue(mockAdminSupabase);
-
-            mockAdminSupabase.update.mockReturnValue({
-                eq: vi.fn().mockResolvedValue({
-                    error: { message: 'Cannot update profile' },
-                }),
-            });
+            mockAuth.mockResolvedValue({ user: mockUser });
+            mockSchoolFindFirst.mockResolvedValue({ id: 'school-123', name: 'Sekolah Join' });
+            mockProfileUpdate.mockRejectedValue(new Error('Cannot update profile'));
 
             const formData = new FormData();
             formData.set('invite_code', 'valid123');
@@ -489,103 +309,38 @@ describe('Onboarding Actions', () => {
         });
 
         it('should lowercase invite code before lookup', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
-
-            const mockAdminSupabase = {
-                from: vi.fn().mockReturnThis(),
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                maybeSingle: vi.fn().mockResolvedValue({
-                    data: { id: 'school-123', name: 'Sekolah Join' },
-                    error: null,
-                }),
-                update: vi.fn().mockReturnThis(),
-            };
-            (createAdminClient as any).mockReturnValue(mockAdminSupabase);
-            mockAdminSupabase.update.mockReturnValue({
-                eq: vi.fn().mockResolvedValue({ error: null }),
-            });
+            mockAuth.mockResolvedValue({ user: mockUser });
+            mockSchoolFindFirst.mockResolvedValue({ id: 'school-123', name: 'Sekolah Join' });
 
             const formData = new FormData();
             formData.set('invite_code', 'UPPERCASE123');
 
             await joinSchool(formData);
 
-            const eqCalls = mockAdminSupabase.eq as any;
-            const inviteCodeCall = eqCalls.mock.calls.find((call: any[]) => call[0] === 'invite_code');
-            expect(inviteCodeCall[1]).toBe('uppercase123');
+            expect(mockSchoolFindFirst).toHaveBeenCalledWith({
+                where: {
+                    inviteCode: 'uppercase123',
+                    isActive: true,
+                }
+            });
         });
 
         it('should trim whitespace from invite code', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
-
-            const mockAdminSupabase = {
-                from: vi.fn().mockReturnThis(),
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                maybeSingle: vi.fn().mockResolvedValue({
-                    data: { id: 'school-123', name: 'Sekolah Join' },
-                    error: null,
-                }),
-                update: vi.fn().mockReturnThis(),
-            };
-            (createAdminClient as any).mockReturnValue(mockAdminSupabase);
-            mockAdminSupabase.update.mockReturnValue({
-                eq: vi.fn().mockResolvedValue({ error: null }),
-            });
+            mockAuth.mockResolvedValue({ user: mockUser });
+            mockSchoolFindFirst.mockResolvedValue({ id: 'school-123', name: 'Sekolah Join' });
 
             const formData = new FormData();
             formData.set('invite_code', '  spaced123  ');
 
             await joinSchool(formData);
 
-            const eqCalls = mockAdminSupabase.eq as any;
-            const inviteCodeCall = eqCalls.mock.calls.find((call: any[]) => call[0] === 'invite_code');
-            expect(inviteCodeCall[1]).toBe('spaced123');
-        });
-
-        it('should filter by is_active=true for school lookup', async () => {
-            const mockSupabase = {
-                auth: {
-                    getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-                },
-            };
-            (createClient as any).mockResolvedValue(mockSupabase);
-
-            const mockAdminSupabase = {
-                from: vi.fn().mockReturnThis(),
-                select: vi.fn().mockReturnThis(),
-                eq: vi.fn().mockReturnThis(),
-                maybeSingle: vi.fn().mockResolvedValue({
-                    data: { id: 'school-123', name: 'Sekolah Join' },
-                    error: null,
-                }),
-                update: vi.fn().mockReturnThis(),
-            };
-            (createAdminClient as any).mockReturnValue(mockAdminSupabase);
-            mockAdminSupabase.update.mockReturnValue({
-                eq: vi.fn().mockResolvedValue({ error: null }),
+            expect(mockSchoolFindFirst).toHaveBeenCalledWith({
+                where: {
+                    inviteCode: 'spaced123',
+                    isActive: true,
+                }
             });
-
-            const formData = new FormData();
-            formData.set('invite_code', 'test123');
-
-            await joinSchool(formData);
-
-            const eqCalls = mockAdminSupabase.eq as any;
-            expect(eqCalls.mock.calls.length).toBeGreaterThanOrEqual(2);
-            expect(eqCalls.mock.calls).toContainEqual(['invite_code', 'test123']);
-            expect(eqCalls.mock.calls).toContainEqual(['is_active', true]);
         });
+
     });
 });

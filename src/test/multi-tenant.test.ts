@@ -1,49 +1,23 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 
-// --- Mock Supabase clients ---
-const mockFrom = vi.fn();
-const mockSelect = vi.fn();
-const mockInsert = vi.fn();
-const mockUpdate = vi.fn();
-const mockDelete = vi.fn();
-const mockEq = vi.fn();
-const mockMaybeSingle = vi.fn();
-const mockSingle = vi.fn();
-const mockOrder = vi.fn();
-const mockIn = vi.fn();
-const mockHead = vi.fn();
-
-const chainMock = () => ({
-    select: mockSelect.mockReturnThis(),
-    insert: mockInsert.mockReturnThis(),
-    update: mockUpdate.mockReturnThis(),
-    delete: mockDelete.mockReturnThis(),
-    eq: mockEq.mockReturnThis(),
-    in: mockIn.mockReturnThis(),
-    maybeSingle: mockMaybeSingle,
-    single: mockSingle,
-    order: mockOrder.mockReturnThis(),
-});
-
-const mockSupabaseClient = {
-    from: mockFrom.mockImplementation(() => chainMock()),
-    auth: { getUser: vi.fn() }
-};
-
-const mockAdminClient = {
-    from: mockFrom.mockImplementation(() => chainMock()),
-};
-
-vi.mock('@/utils/supabase/server', () => ({
-    createClient: vi.fn(() => Promise.resolve(mockSupabaseClient)),
-}));
-
-vi.mock('@/utils/supabase/admin', () => ({
-    createAdminClient: vi.fn(() => mockAdminClient),
-}));
-
 vi.mock('next/navigation', () => ({
     redirect: vi.fn((url: string) => { throw new Error(`REDIRECT:${url}`); }),
+}));
+
+vi.mock('@/auth', () => ({
+    auth: vi.fn(),
+}));
+
+vi.mock('@/lib/db', () => ({
+    default: {
+        school: {
+            findFirst: vi.fn(),
+            create: vi.fn(),
+        },
+        profile: {
+            update: vi.fn(),
+        },
+    },
 }));
 
 vi.mock('next/cache', () => ({
@@ -58,9 +32,8 @@ describe('Multi-Tenant: Onboarding Actions', () => {
     describe('createSchool', () => {
         it('should redirect with error when school name is empty', async () => {
             // Setup user auth
-            mockSupabaseClient.auth.getUser.mockResolvedValue({
-                data: { user: { id: 'user-1' } }
-            });
+            const { auth } = await import('@/auth');
+            (auth as Mock).mockResolvedValue({ user: { id: 'user-1' } });
 
             const { createSchool } = await import('@/app/onboarding/actions');
 
@@ -72,9 +45,8 @@ describe('Multi-Tenant: Onboarding Actions', () => {
         });
 
         it('should redirect with error when user is not authenticated', async () => {
-            mockSupabaseClient.auth.getUser.mockResolvedValue({
-                data: { user: null }
-            });
+            const { auth } = await import('@/auth');
+            (auth as Mock).mockResolvedValue({ user: null });
 
             const { createSchool } = await import('@/app/onboarding/actions');
 
@@ -87,9 +59,8 @@ describe('Multi-Tenant: Onboarding Actions', () => {
 
     describe('joinSchool', () => {
         it('should redirect with error when invite code is empty', async () => {
-            mockSupabaseClient.auth.getUser.mockResolvedValue({
-                data: { user: { id: 'user-1' } }
-            });
+            const { auth } = await import('@/auth');
+            (auth as Mock).mockResolvedValue({ user: { id: 'user-1' } });
 
             const { joinSchool } = await import('@/app/onboarding/actions');
 
@@ -100,9 +71,8 @@ describe('Multi-Tenant: Onboarding Actions', () => {
         });
 
         it('should redirect with error when user is not authenticated', async () => {
-            mockSupabaseClient.auth.getUser.mockResolvedValue({
-                data: { user: null }
-            });
+            const { auth } = await import('@/auth');
+            (auth as Mock).mockResolvedValue({ user: null });
 
             const { joinSchool } = await import('@/app/onboarding/actions');
 

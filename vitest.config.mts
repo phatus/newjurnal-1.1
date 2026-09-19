@@ -30,6 +30,7 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src'),
+            'next/server': 'next/server.js',
         },
     },
 })
