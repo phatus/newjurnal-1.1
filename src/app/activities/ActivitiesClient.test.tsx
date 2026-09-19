@@ -331,10 +331,10 @@ describe('ActivitiesClient', () => {
     });
 
     it('should have proper month/year filter options', () => {
-        render(<ActivitiesClient initialActivities={mockActivities} />);
+        render(<ActivitiesClient initialActivities={mockActivities} currentMonth={3} />);
 
         // Check month dropdown
-        const monthSelect = screen.getByDisplayValue('Maret'); // March should be selected for currentMonth=null (default)
+        const monthSelect = screen.getByDisplayValue('Maret'); // March should be selected
         expect(monthSelect).toBeInTheDocument();
 
         // Check year dropdown (should have 5 years)
@@ -349,7 +349,7 @@ describe('ActivitiesClient', () => {
         render(<ActivitiesClient initialActivities={mockActivities} />);
 
         // Check that mobile cards container exists (hidden on desktop)
-        const mobileContainer = document.querySelector('.block.md\\:hidden');
+        const mobileContainer = document.querySelector('.block.lg\\:hidden');
         expect(mobileContainer).toBeInTheDocument();
     });
 

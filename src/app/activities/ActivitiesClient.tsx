@@ -331,7 +331,7 @@ export default function ActivitiesClient({
                                                             onClick={() => handleDeleteClick(act.id)}
                                                             disabled={loadingId === act.id}
                                                             className="h-9 px-3 flex items-center gap-1.5 rounded-lg bg-red-50 text-red-600 border border-red-200/60 hover:bg-red-500 hover:text-white transition-all text-xs font-bold shadow-2xs disabled:opacity-50 shrink-0"
-                                                            title="Hapus Kegiatan"
+                                                            title="Hapus"
                                                         >
                                                             {loadingId === act.id ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
                                                             <span>Hapus</span>
