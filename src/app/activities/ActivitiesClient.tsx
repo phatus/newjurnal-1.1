@@ -21,6 +21,13 @@ import { useRouter } from "next/navigation";
 import { toast } from 'sonner';
 import type { Activity } from "@/types";
 
+function getEvidenceUrl(url?: string | null) {
+    if (!url) return null;
+    const trimmed = url.trim();
+    if (!trimmed) return null;
+    return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
+}
+
 interface ActivitiesClientProps {
     initialActivities: Activity[];
     currentMonth?: number;
@@ -292,20 +299,23 @@ export default function ActivitiesClient({
                                                     )}
                                                 </td>
                                                 <td className="p-4 align-top text-center">
-                                                    {act.evidence_link ? (
-                                                        <a
-                                                            href={act.evidence_link}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="inline-flex flex-col items-center justify-center p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all mx-auto group/btn"
-                                                            title="Lihat Bukti"
-                                                        >
-                                                            <ExternalLink size={16} className="group-hover/btn:scale-110 transition-transform" />
-                                                            <span className="sr-only">Lihat Bukti</span>
-                                                        </a>
-                                                    ) : (
-                                                        <span className="text-slate-300 inline-block mt-2">-</span>
-                                                    )}
+                                                    {(() => {
+                                                        const evidenceUrl = getEvidenceUrl(act.evidence_link || (act as any).evidenceLink);
+                                                        return evidenceUrl ? (
+                                                            <a
+                                                                href={evidenceUrl}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex flex-col items-center justify-center p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all mx-auto group/btn"
+                                                                title="Lihat Bukti"
+                                                            >
+                                                                <ExternalLink size={16} className="group-hover/btn:scale-110 transition-transform" />
+                                                                <span className="sr-only">Lihat Bukti</span>
+                                                            </a>
+                                                        ) : (
+                                                            <span className="text-slate-300 inline-block mt-2">-</span>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="p-4 pr-6 align-top text-right sticky right-0 bg-white group-hover:bg-slate-50/95 transition-colors border-l border-slate-100 z-10 shadow-2xs">
                                                     <div className="flex items-center justify-end gap-2">
@@ -396,16 +406,19 @@ export default function ActivitiesClient({
 
                                                     {/* Card Footer: Actions */}
                                                     <div className="flex items-center border-t border-slate-100">
-                                                        {act.evidence_link && (
-                                                            <a
-                                                                href={act.evidence_link}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-blue-600 text-xs font-bold hover:bg-blue-50 transition-colors border-r border-slate-100"
-                                                            >
-                                                                <ExternalLink size={13} /> Lihat Bukti
-                                                            </a>
-                                                        )}
+                                                        {(() => {
+                                                            const evidenceUrl = getEvidenceUrl(act.evidence_link || (act as any).evidenceLink);
+                                                            return evidenceUrl ? (
+                                                                <a
+                                                                    href={evidenceUrl}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-blue-600 text-xs font-bold hover:bg-blue-50 transition-colors border-r border-slate-100"
+                                                                >
+                                                                    <ExternalLink size={13} /> Lihat Bukti
+                                                                </a>
+                                                            ) : null;
+                                                        })()}
                                                         <Link
                                                             href={`/activities/${act.id}/edit`}
                                                             className={cn(

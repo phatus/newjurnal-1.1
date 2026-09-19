@@ -15,7 +15,7 @@ interface ProfileAvatarProps {
     email?: string
 }
 
-export default function ProfileAvatar({ uid, url, name, email }: ProfileAvatarProps) {
+export default function ProfileAvatar({ uid: _uid, url, name, email }: ProfileAvatarProps) {
     const router = useRouter()
     const [uploading, setUploading] = useState(false)
     const [showMenu, setShowMenu] = useState(false)

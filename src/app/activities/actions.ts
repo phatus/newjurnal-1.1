@@ -57,6 +57,21 @@ function serializeActivity(act: any) {
         categoryId: catId ? Number(catId) : null,
         implementation_basis_id: basisId ? String(basisId) : '',
         implementationBasisId: basisId ? Number(basisId) : null,
+        evidence_link: act.evidenceLink ?? act.evidence_link ?? null,
+        evidenceLink: act.evidenceLink ?? act.evidence_link ?? null,
+        teaching_hours: act.teachingHours ?? act.teaching_hours ?? null,
+        teachingHours: act.teachingHours ?? act.teaching_hours ?? null,
+        student_count: act.studentCount ?? act.student_count ?? null,
+        studentCount: act.studentCount ?? act.student_count ?? null,
+        learning_material: act.learningMaterial ?? act.learning_material ?? null,
+        learningMaterial: act.learningMaterial ?? act.learning_material ?? null,
+        learning_outcome: act.learningOutcome ?? act.learning_outcome ?? null,
+        learningOutcome: act.learningOutcome ?? act.learning_outcome ?? null,
+        student_outcome: act.studentOutcome ?? act.student_outcome ?? null,
+        studentOutcome: act.studentOutcome ?? act.student_outcome ?? null,
+        topic: act.topic ?? null,
+        user_id: act.userId ?? act.user_id ?? null,
+        school_id: act.schoolId ?? act.school_id ?? null,
         category: act.category ? {
             name: act.category.name,
             is_teaching: Boolean(act.category.isTeaching ?? act.category.is_teaching),
@@ -171,7 +186,7 @@ export async function getCategories() {
     })
     const schoolId = profile?.schoolId
 
-    let whereClause: any = {
+    const whereClause: any = {
         OR: [
             { userId: null, schoolId: null }
         ]
@@ -217,7 +232,7 @@ export async function getClassRooms() {
     })
     const schoolId = profile?.schoolId
 
-    let whereClause: any = {
+    const whereClause: any = {
         OR: [
             { userId: null, schoolId: null }
         ]
@@ -263,7 +278,7 @@ export async function getImplementationBases() {
     })
     const schoolId = profile?.schoolId
 
-    let whereClause: any = {
+    const whereClause: any = {
         OR: [
             { userId: null, schoolId: null }
         ]
@@ -514,7 +529,7 @@ export async function getActivities(month?: number, year?: number) {
     if (!user || !user.id) return []
 
     try {
-        let whereClause: any = { userId: user.id }
+        const whereClause: any = { userId: user.id }
 
         if (month && year) {
             const startDate = new Date(year, month - 1, 1)
@@ -559,7 +574,11 @@ export async function getActivityById(id: string) {
         include: {
             category: true,
             implementationBasis: true,
-            classRooms: true
+            classRooms: {
+                include: {
+                    classRoom: true
+                }
+            }
         }
     })
 

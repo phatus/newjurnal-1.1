@@ -5,33 +5,9 @@ import prisma from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import bcrypt from 'bcryptjs'
 
-// Helper to serialize BigInts
-function serializeCategory(cat: any) {
-    if (!cat) return null;
-    return {
-        ...cat,
-        id: Number(cat.id),
-        is_teaching: Boolean(cat.isTeaching ?? cat.is_teaching ?? false),
-        isTeaching: Boolean(cat.isTeaching ?? cat.is_teaching ?? false),
-        rhk_label: cat.rhkLabel || cat.rhk_label || cat.name
-    };
-}
 
-function serializeClassRoom(cls: any) {
-    if (!cls) return null;
-    return {
-        ...cls,
-        id: Number(cls.id)
-    };
-}
 
-function serializeBase(base: any) {
-    if (!base) return null;
-    return {
-        ...base,
-        id: Number(base.id)
-    };
-}
+
 
 // --- Categories ---
 export async function createCategory(formData: FormData) {
@@ -170,7 +146,7 @@ export async function getUsers() {
         select: { schoolId: true, role: true }
     })
 
-    let query: any = {}
+    const query: any = {}
 
     // super_admin sees all, admin sees only their school
     if (profile?.role !== 'super_admin' && profile?.schoolId) {
