@@ -27,10 +27,17 @@ export default function ScheduleQuickAction({ initialSchedules, selectedDate }: 
     const [materi, setMateri] = useState('')
     const [capaian, setCapaian] = useState('')
 
+    /** Parse "YYYY-MM-DD" as local date to avoid timezone shift in day/name display */
+    const parseLocalDate = (dateStr: string): Date => {
+        const [y, m, d] = dateStr.split('-').map(Number)
+        return new Date(y, m - 1, d)
+    }
+
+    const selectedLocalDate = parseLocalDate(selectedDate)
+
     useEffect(() => {
-        // Parse the selectedDate to get the day of the week (0-6)
-        const dateObj = new Date(selectedDate)
-        const dayOfWeek = dateObj.getDay()
+        // Parse selectedDate as local date to get correct day-of-week (avoid timezone shift)
+        const dayOfWeek = selectedLocalDate.getDay()
 
         const filtered = (initialSchedules.filter(s => s.day_of_week === dayOfWeek) as any) as ScheduleItem[]
         setTodaySchedules(filtered)
@@ -91,10 +98,10 @@ export default function ScheduleQuickAction({ initialSchedules, selectedDate }: 
             <div className="flex items-center justify-between px-2">
                 <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                     <Calendar className="text-amber-500" size={20} />
-                    {isToday ? 'Jadwal Anda Hari Ini' : `Jadwal: ${new Date(selectedDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+                    {isToday ? 'Jadwal Anda Hari Ini' : `Jadwal: ${selectedLocalDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`}
                 </h2>
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-3 py-1 rounded-full">
-                    {new Date(selectedDate).toLocaleDateString('id-ID', { weekday: 'long' })}
+                    {selectedLocalDate.toLocaleDateString('id-ID', { weekday: 'long' })}
                 </span>
             </div>
 

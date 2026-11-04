@@ -132,7 +132,7 @@ export async function createActivity(formData: FormData) {
             schoolId: profile?.schoolId,
             categoryId: categoryIdVal,
             implementationBasisId: basisIdVal,
-            activityDate: new Date(activity_date),
+            activityDate: (() => { const [y, m, d] = activity_date.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); })(),
             description,
             evidenceLink: evidence_link,
             teachingHours: teaching_hours,
@@ -615,7 +615,7 @@ export async function updateActivity(id: string, formData: FormData) {
             data: {
                 categoryId: BigInt(category_id),
                 implementationBasisId: implementation_basis_id ? BigInt(implementation_basis_id) : null,
-                activityDate: new Date(activity_date),
+                activityDate: (() => { const [y, m, d] = activity_date.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); })(),
                 description,
                 evidenceLink: evidence_link,
                 teachingHours: teaching_hours,

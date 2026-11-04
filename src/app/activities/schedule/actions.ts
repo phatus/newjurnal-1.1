@@ -4,6 +4,12 @@ import { auth } from '@/auth'
 import prisma from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 
+/** Parse a "YYYY-MM-DD" string as UTC midnight to avoid GMT+7 timezone shift */
+function parseDateToUTC(dateStr: string): Date {
+    const [y, m, d] = dateStr.split('-').map(Number)
+    return new Date(Date.UTC(y, m - 1, d))
+}
+
 // Helpers to serialize BigInts & Dates
 function serializeHoliday(h: any) {
     if (!h) return null;
@@ -60,7 +66,7 @@ export async function getSchedules(selectedDate?: string) {
     if (!user || !user.id) return []
 
     const checkDate = selectedDate || new Date().toISOString().split('T')[0]
-    const dateParsed = new Date(checkDate)
+    const dateParsed = parseDateToUTC(checkDate)
 
     try {
         const data = await prisma.activitySchedule.findMany({
@@ -284,7 +290,7 @@ export async function convertScheduleToActivity(
     const user = session?.user
     if (!user || !user.id) throw new Error('Unauthorized')
 
-    const dateParsed = new Date(date)
+    const dateParsed = parseDateToUTC(date)
 
     const existing = await prisma.activity.findFirst({
         where: {

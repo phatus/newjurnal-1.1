@@ -8,10 +8,20 @@ export default function DashboardDateFilter({ selectedDate }: { selectedDate: st
     const router = useRouter()
     const searchParams = useSearchParams()
 
-    const date = new Date(selectedDate)
-    
+    // Parse "YYYY-MM-DD" as local date (no timezone shift) for display purposes
+    const [sy, sm, sd] = selectedDate.split('-').map(Number)
+    const date = new Date(sy, sm - 1, sd)
+
+    /** Format a local Date to "YYYY-MM-DD" without timezone conversion */
+    const toLocalDateStr = (d: Date): string => {
+        const y = d.getFullYear()
+        const mo = String(d.getMonth() + 1).padStart(2, '0')
+        const dy = String(d.getDate()).padStart(2, '0')
+        return `${y}-${mo}-${dy}`
+    }
+
     const handleDateChange = (newDate: Date) => {
-        const dateStr = newDate.toISOString().split('T')[0]
+        const dateStr = toLocalDateStr(newDate)
         const params = new URLSearchParams(searchParams ? searchParams.toString() : '')
         params.set('date', dateStr)
         router.push(`/?${params.toString()}`)
@@ -29,7 +39,7 @@ export default function DashboardDateFilter({ selectedDate }: { selectedDate: st
         handleDateChange(d)
     }
 
-    const isToday = selectedDate === new Date().toISOString().split('T')[0]
+    const isToday = selectedDate === toLocalDateStr(new Date())
 
     return (
         <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-2 sm:p-3 rounded-3xl border border-slate-100 shadow-sm w-fit">
@@ -46,7 +56,10 @@ export default function DashboardDateFilter({ selectedDate }: { selectedDate: st
                     <input 
                         type="date" 
                         value={selectedDate}
-                        onChange={(e) => handleDateChange(new Date(e.target.value))}
+                        onChange={(e) => {
+                            const [y, m, d] = e.target.value.split('-').map(Number)
+                            handleDateChange(new Date(y, m - 1, d))
+                        }}
                         className="bg-transparent border-none text-xs font-black text-slate-700 focus:ring-0 cursor-pointer p-0"
                     />
                 </div>
