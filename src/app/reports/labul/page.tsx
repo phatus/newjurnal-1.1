@@ -24,8 +24,8 @@ export default async function LabulReportPage(props: {
 
     // month is 1-12, use new Date(year, month, 0) to get last day of that month
     const lastDate = new Date(year, month, 0); // Date object for last day of month
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+    const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
     const dbActivities = await prisma.activity.findMany({
         where: {

@@ -532,8 +532,8 @@ export async function getActivities(month?: number, year?: number) {
         const whereClause: any = { userId: user.id }
 
         if (month && year) {
-            const startDate = new Date(year, month - 1, 1)
-            const endDate = new Date(year, month, 0, 23, 59, 59, 999)
+            const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0))
+            const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999))
             whereClause.activityDate = {
                 gte: startDate,
                 lte: endDate

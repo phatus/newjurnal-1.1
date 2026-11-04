@@ -15,7 +15,7 @@ export default function ReportsClient({ reportTypes }: { reportTypes: Array<{ id
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    const [month, setMonth] = useState((searchParams && searchParams.get("month")) || new Date().getMonth().toString());
+    const [month, setMonth] = useState((searchParams && searchParams.get("month")) || (new Date().getMonth() + 1).toString());
     const [year, setYear] = useState((searchParams && searchParams.get("year")) || new Date().getFullYear().toString());
 
     function handleDownload(id: string) {
@@ -34,7 +34,7 @@ export default function ReportsClient({ reportTypes }: { reportTypes: Array<{ id
                         className="bg-transparent border-none text-xs font-black text-slate-700 focus:ring-0 appearance-none py-1"
                     >
                         {["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"].map((m, i) => (
-                            <option key={i} value={i}>{m}</option>
+                            <option key={i} value={i + 1}>{m}</option>
                         ))}
                     </select>
                 </div>

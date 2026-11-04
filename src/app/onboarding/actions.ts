@@ -1,6 +1,6 @@
 'use server'
 
-import { auth } from '@/auth'
+import { auth, unstable_update } from '@/auth'
 import prisma from '@/lib/db'
 import { redirect } from 'next/navigation'
 
@@ -56,11 +56,22 @@ export async function createSchool(formData: FormData) {
         // Initialize base data from template
         await initializeSchoolData(school.id, user.id);
 
-        return redirect('/?message=' + encodeURIComponent('Selamat! Sekolah "' + schoolName + '" berhasil didaftarkan. Data dasar telah disiapkan. Anda menjadi Admin.') + '&type=success')
+        try {
+            if (typeof unstable_update === 'function') {
+                await unstable_update({ user: { schoolId: school.id, role: 'admin' } as any });
+            }
+        } catch {
+            // Ignore if in test or headers already sent
+        }
     } catch (schoolError: any) {
+        if (schoolError?.digest?.startsWith('NEXT_REDIRECT') || schoolError?.message === 'NEXT_REDIRECT') {
+            throw schoolError;
+        }
         console.error('Create School Error:', schoolError)
         return redirect('/onboarding?message=' + encodeURIComponent('Gagal membuat sekolah: ' + schoolError.message) + '&type=error')
     }
+
+    return redirect('/?message=' + encodeURIComponent('Selamat! Sekolah "' + schoolName + '" berhasil didaftarkan. Data dasar telah disiapkan. Anda menjadi Admin.') + '&type=success')
 }
 
 /**
@@ -158,9 +169,20 @@ export async function joinSchool(formData: FormData) {
             }
         })
 
-        return redirect('/?message=' + encodeURIComponent('Berhasil bergabung ke "' + school.name + '"!') + '&type=success')
+        try {
+            if (typeof unstable_update === 'function') {
+                await unstable_update({ user: { schoolId: school.id } as any });
+            }
+        } catch {
+            // Ignore if in test or headers already sent
+        }
     } catch (profileError: any) {
+        if (profileError?.digest?.startsWith('NEXT_REDIRECT') || profileError?.message === 'NEXT_REDIRECT') {
+            throw profileError;
+        }
         console.error('Join School Error:', profileError)
         return redirect('/onboarding?tab=join&message=' + encodeURIComponent('Gagal bergabung ke sekolah.') + '&type=error')
     }
+
+    return redirect('/?message=' + encodeURIComponent('Berhasil bergabung ke "' + school.name + '"!') + '&type=success')
 }

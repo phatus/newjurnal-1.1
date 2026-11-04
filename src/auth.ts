@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs"
 import prisma from "@/lib/db"
 import { authConfig } from "./auth.config"
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
     ...authConfig,
     providers: [
         Credentials({
@@ -49,4 +49,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             },
         }),
     ],
+    callbacks: {
+        ...authConfig.callbacks,
+        async jwt({ token, user, trigger, session }) {
+            if (user) {
+                token.id = user.id;
+                token.role = (user as any).role;
+                token.schoolId = (user as any).schoolId;
+            }
+            if (trigger === "update" && session?.user) {
+                if (session.user.schoolId !== undefined) token.schoolId = session.user.schoolId;
+                if (session.user.role !== undefined) token.role = session.user.role;
+            }
+            // Auto-sync schoolId from database if not present in token
+            if (token.id && !token.schoolId) {
+                try {
+                    const profile = await prisma.profile.findUnique({
+                        where: { id: token.id as string },
+                        select: { schoolId: true, role: true }
+                    });
+                    if (profile?.schoolId) {
+                        token.schoolId = profile.schoolId;
+                        if (profile.role) token.role = profile.role;
+                    }
+                } catch (e) {
+                    console.error("Failed to sync profile in jwt callback:", e);
+                }
+            }
+            return token;
+        },
+    }
 })

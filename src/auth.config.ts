@@ -35,11 +35,15 @@ export const authConfig = {
 
             return true;
         },
-        jwt({ token, user }) {
+        jwt({ token, user, trigger, session }) {
             if (user) {
                 token.id = user.id;
                 token.role = (user as any).role;
                 token.schoolId = (user as any).schoolId;
+            }
+            if (trigger === "update" && session?.user) {
+                if (session.user.schoolId !== undefined) token.schoolId = session.user.schoolId;
+                if (session.user.role !== undefined) token.role = session.user.role;
             }
             return token;
         },

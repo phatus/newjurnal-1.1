@@ -35,8 +35,8 @@ export async function getHolidays() {
 export async function getHolidaysForMonth(year: number, month: number) {
   try {
     // month is 1-indexed (1-12)
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 1); // Less than the first day of next month
+    const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const endDate = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0)); // Less than the first day of next month
 
     const data = await prisma.holiday.findMany({
       where: {
