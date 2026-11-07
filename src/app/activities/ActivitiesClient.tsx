@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
     ChevronLeft,
+    ChevronRight,
     Search,
     Trash2,
     FileText,
@@ -20,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from 'sonner';
 import type { Activity } from "@/types";
+
+const DATES_PER_PAGE = 5;
 
 function getEvidenceUrl(url?: string | null) {
     if (!url) return null;
@@ -49,6 +52,7 @@ export default function ActivitiesClient({
     const [loadingId, setLoadingId] = useState<string | null>(null);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
 
     const [selectedMonth, setSelectedMonth] = useState(currentMonth || new Date().getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState(currentYear || new Date().getFullYear());
@@ -56,12 +60,18 @@ export default function ActivitiesClient({
     // Sync activities state when initialActivities changes
     useEffect(() => {
         setActivities(initialActivities);
+        setCurrentPage(1);
     }, [initialActivities]);
 
     const filteredActivities = activities.filter((act: Activity) =>
         act.description.toLowerCase().includes(search.toLowerCase()) ||
         (act.category?.name || '').toLowerCase() === search.toLowerCase()
     );
+
+    // Reset ke halaman 1 saat pencarian berubah
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search]);
 
     const months = [
         "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -137,6 +147,33 @@ export default function ActivitiesClient({
     }, [filteredActivities]);
 
     const sortedDates = useMemo(() => Object.keys(groupedActivities).sort().reverse(), [groupedActivities]);
+
+    // Pagination logic (pagination per tanggal)
+    const totalPages = Math.ceil(sortedDates.length / DATES_PER_PAGE);
+    const paginatedDates = useMemo(() => {
+        const start = (currentPage - 1) * DATES_PER_PAGE;
+        return sortedDates.slice(start, start + DATES_PER_PAGE);
+    }, [sortedDates, currentPage]);
+
+    // Pastikan currentPage tidak melebihi totalPages ketika data berubah
+    useEffect(() => {
+        if (currentPage > totalPages && totalPages > 0) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
+
+    function getPageNumbers() {
+        if (totalPages <= 7) {
+            return Array.from({ length: totalPages }, (_, i) => i + 1);
+        }
+        if (currentPage <= 4) {
+            return [1, 2, 3, 4, 5, '...', totalPages];
+        }
+        if (currentPage >= totalPages - 3) {
+            return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+        }
+        return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+    }
 
     return (
         <div className="flex flex-col min-h-screen bg-slate-50 pb-10">
@@ -242,7 +279,7 @@ export default function ActivitiesClient({
                                     </tr>
                                 </thead>
                                 <tbody className="text-sm font-medium text-slate-700 divide-y divide-slate-100">
-                                    {sortedDates.flatMap((date) => {
+                                    {paginatedDates.flatMap((date) => {
                                         const { dateStr, dayStr } = formatActivityDate(date, true);
 
                                         return groupedActivities[date].map((act: Activity, index: number) => (
@@ -347,7 +384,7 @@ export default function ActivitiesClient({
 
                         {/* Mobile View (Cards) */}
                         <div className="block lg:hidden">
-                            {sortedDates.map((date) => {
+                            {paginatedDates.map((date) => {
                                 const { dateStr, dayStr } = formatActivityDate(date, false);
 
                                 return (
@@ -446,6 +483,61 @@ export default function ActivitiesClient({
                                 );
                             })}
                         </div>
+
+                        {/* Pagination Bar */}
+                        {sortedDates.length > 0 && (
+                            <div className="p-4 px-6 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div className="text-xs font-bold text-slate-500">
+                                    Menampilkan <span className="text-slate-900 font-black">{((currentPage - 1) * DATES_PER_PAGE) + 1}</span> - <span className="text-slate-900 font-black">{Math.min(currentPage * DATES_PER_PAGE, sortedDates.length)}</span> dari <span className="text-slate-900 font-black">{sortedDates.length}</span> hari ({filteredActivities.length} kegiatan)
+                                </div>
+                                {totalPages > 1 && (
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                                            disabled={currentPage === 1}
+                                            className="h-9 px-3 flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs"
+                                            title="Halaman Sebelumnya"
+                                            aria-label="Halaman Sebelumnya"
+                                        >
+                                            <ChevronLeft size={16} />
+                                            <span className="hidden sm:inline">Sebelumnya</span>
+                                        </button>
+                                        <div className="flex items-center gap-1">
+                                            {getPageNumbers().map((page, idx) => (
+                                                page === '...' ? (
+                                                    <span key={`dots-${idx}`} className="px-2 text-xs font-bold text-slate-400">...</span>
+                                                ) : (
+                                                    <button
+                                                        key={page}
+                                                        onClick={() => setCurrentPage(Number(page))}
+                                                        aria-label={`Halaman ${page}`}
+                                                        aria-current={currentPage === page ? "page" : undefined}
+                                                        className={cn(
+                                                            "h-9 w-9 flex items-center justify-center rounded-xl text-xs font-black transition-all",
+                                                            currentPage === page
+                                                                ? "bg-amber-500 text-white shadow-md shadow-amber-200"
+                                                                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-xs"
+                                                        )}
+                                                    >
+                                                        {page}
+                                                    </button>
+                                                )
+                                            ))}
+                                        </div>
+                                        <button
+                                            onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                                            disabled={currentPage === totalPages}
+                                            className="h-9 px-3 flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs"
+                                            title="Halaman Selanjutnya"
+                                            aria-label="Halaman Selanjutnya"
+                                        >
+                                            <span className="hidden sm:inline">Selanjutnya</span>
+                                            <ChevronRight size={16} />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

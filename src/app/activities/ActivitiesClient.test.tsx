@@ -372,4 +372,100 @@ describe('ActivitiesClient', () => {
             expect(screen.getAllByText('Ujian semester').length).toBeGreaterThan(0);
         });
     });
+
+    it('should display pagination summary when activities exist', () => {
+        render(<ActivitiesClient initialActivities={mockActivities} />);
+
+        // 3 mock activities across 2 dates
+        expect(screen.getByText(/Menampilkan/i)).toHaveTextContent('Menampilkan 1 - 2 dari 2 hari (3 kegiatan)');
+    });
+
+    it('should paginate activities and navigate between pages correctly', async () => {
+        const user = userEvent.setup();
+        // Create activities spanning 7 distinct dates (so 2 pages with 5 dates per page)
+        const multiDateActivities = Array.from({ length: 7 }, (_, i) => ({
+            id: `act-${i + 1}`,
+            user_id: 'user-1',
+            school_id: 'school-1',
+            category_id: '1',
+            description: `Kegiatan hari ke-${i + 1}`,
+            activity_date: `2024-03-0${i + 1}`,
+            category: { name: 'KBM', rhk_label: 'Proses Pembelajaran', is_teaching: true },
+            teaching_hours: 2,
+            classes: [],
+            basis: null,
+            evidence_link: null,
+        }));
+
+        render(<ActivitiesClient initialActivities={multiDateActivities} />);
+
+        // Page 1 should show dates 7 to 3 (sorted reverse)
+        expect(screen.getByText(/Menampilkan/i)).toHaveTextContent('Menampilkan 1 - 5 dari 7 hari (7 kegiatan)');
+
+        // Check page 1 buttons exist
+        const prevButton = screen.getByTitle('Halaman Sebelumnya');
+        const nextButton = screen.getByTitle('Halaman Selanjutnya');
+        expect(prevButton).toBeDisabled();
+        expect(nextButton).not.toBeDisabled();
+
+        // Page 1 should show the latest date activities (2024-03-07) and not the 2024-03-01 activities
+        expect(screen.getAllByText('Kegiatan hari ke-7').length).toBeGreaterThan(0);
+        expect(screen.queryByText('Kegiatan hari ke-1')).not.toBeInTheDocument();
+
+        // Click Next Page
+        await user.click(nextButton);
+
+        // Page 2 should now show 2024-03-01 activity and not 2024-03-07
+        await waitFor(() => {
+            expect(screen.getByText(/Menampilkan/i)).toHaveTextContent('Menampilkan 6 - 7 dari 7 hari (7 kegiatan)');
+            expect(screen.getAllByText('Kegiatan hari ke-1').length).toBeGreaterThan(0);
+            expect(screen.queryByText('Kegiatan hari ke-7')).not.toBeInTheDocument();
+            expect(prevButton).not.toBeDisabled();
+            expect(nextButton).toBeDisabled();
+        });
+
+        // Click Previous Page
+        await user.click(prevButton);
+        await waitFor(() => {
+            expect(screen.getByText(/Menampilkan/i)).toHaveTextContent('Menampilkan 1 - 5 dari 7 hari (7 kegiatan)');
+            expect(screen.getAllByText('Kegiatan hari ke-7').length).toBeGreaterThan(0);
+            expect(prevButton).toBeDisabled();
+        });
+    });
+
+    it('should reset to page 1 when search query changes', async () => {
+        const user = userEvent.setup();
+        const multiDateActivities = Array.from({ length: 7 }, (_, i) => ({
+            id: `act-${i + 1}`,
+            user_id: 'user-1',
+            school_id: 'school-1',
+            category_id: '1',
+            description: `Kegiatan hari ke-${i + 1}`,
+            activity_date: `2024-03-0${i + 1}`,
+            category: { name: 'KBM', rhk_label: 'Proses Pembelajaran', is_teaching: true },
+            teaching_hours: 2,
+            classes: [],
+            basis: null,
+            evidence_link: null,
+        }));
+
+        render(<ActivitiesClient initialActivities={multiDateActivities} />);
+
+        const nextButton = screen.getByTitle('Halaman Selanjutnya');
+        await user.click(nextButton);
+
+        // Verify we are on page 2
+        await waitFor(() => {
+            expect(screen.getAllByText('Kegiatan hari ke-1').length).toBeGreaterThan(0);
+        });
+
+        // Search for something
+        const searchInput = screen.getByPlaceholderText('Cari kegiatan...');
+        await user.type(searchInput, 'Kegiatan');
+
+        // Should reset to page 1
+        await waitFor(() => {
+            expect(screen.getAllByText('Kegiatan hari ke-7').length).toBeGreaterThan(0);
+        });
+    });
 });
