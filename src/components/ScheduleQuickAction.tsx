@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { CheckCircle2, Calendar, Clock, ArrowRight, Book, Target, Save, X } from 'lucide-react'
 import { convertScheduleToActivity } from '@/app/activities/schedule/actions'
 import { cn } from '@/lib/utils'
@@ -27,13 +27,10 @@ export default function ScheduleQuickAction({ initialSchedules, selectedDate }: 
     const [materi, setMateri] = useState('')
     const [capaian, setCapaian] = useState('')
 
-    /** Parse "YYYY-MM-DD" as local date to avoid timezone shift in day/name display */
-    const parseLocalDate = (dateStr: string): Date => {
-        const [y, m, d] = dateStr.split('-').map(Number)
+    const selectedLocalDate = useMemo(() => {
+        const [y, m, d] = selectedDate.split('-').map(Number)
         return new Date(y, m - 1, d)
-    }
-
-    const selectedLocalDate = parseLocalDate(selectedDate)
+    }, [selectedDate])
 
     useEffect(() => {
         // Parse selectedDate as local date to get correct day-of-week (avoid timezone shift)
@@ -45,7 +42,7 @@ export default function ScheduleQuickAction({ initialSchedules, selectedDate }: 
         // Mark as completed if already confirmed on server
         const alreadyConfirmed = filtered.filter(s => s.is_confirmed_today).map(s => s.id)
         setCompleted(alreadyConfirmed)
-    }, [initialSchedules, selectedDate])
+    }, [initialSchedules, selectedLocalDate])
 
     const handleConfirm = async (id: string, mat?: string, cap?: string) => {
         setLoading(id)
