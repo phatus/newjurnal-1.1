@@ -382,14 +382,14 @@ describe('ActivitiesClient', () => {
 
     it('should paginate activities and navigate between pages correctly', async () => {
         const user = userEvent.setup();
-        // Create activities spanning 7 distinct dates (so 2 pages with 5 dates per page)
-        const multiDateActivities = Array.from({ length: 7 }, (_, i) => ({
+        // Create activities spanning 15 distinct dates (so 2 pages with 10 dates per page by default)
+        const multiDateActivities = Array.from({ length: 15 }, (_, i) => ({
             id: `act-${i + 1}`,
             user_id: 'user-1',
             school_id: 'school-1',
             category_id: '1',
             description: `Kegiatan hari ke-${i + 1}`,
-            activity_date: `2024-03-0${i + 1}`,
+            activity_date: `2024-03-${String(i + 1).padStart(2, '0')}`,
             category: { name: 'KBM', rhk_label: 'Proses Pembelajaran', is_teaching: true },
             teaching_hours: 2,
             classes: [],
@@ -399,8 +399,8 @@ describe('ActivitiesClient', () => {
 
         render(<ActivitiesClient initialActivities={multiDateActivities} />);
 
-        // Page 1 should show dates 7 to 3 (sorted reverse)
-        expect(screen.getByText(/Menampilkan/i)).toHaveTextContent('Menampilkan 1 - 5 dari 7 hari (7 kegiatan)');
+        // Page 1 should show 1 - 10 dari 15 hari (sorted reverse: dates 15 to 6)
+        expect(screen.getByText(/Menampilkan/i)).toHaveTextContent('Menampilkan 1 - 10 dari 15 hari (15 kegiatan)');
 
         // Check page 1 buttons exist
         const prevButton = screen.getByTitle('Halaman Sebelumnya');
@@ -408,18 +408,18 @@ describe('ActivitiesClient', () => {
         expect(prevButton).toBeDisabled();
         expect(nextButton).not.toBeDisabled();
 
-        // Page 1 should show the latest date activities (2024-03-07) and not the 2024-03-01 activities
-        expect(screen.getAllByText('Kegiatan hari ke-7').length).toBeGreaterThan(0);
+        // Page 1 should show the latest date activities (2024-03-15) and not the 2024-03-01 activities
+        expect(screen.getAllByText('Kegiatan hari ke-15').length).toBeGreaterThan(0);
         expect(screen.queryByText('Kegiatan hari ke-1')).not.toBeInTheDocument();
 
         // Click Next Page
         await user.click(nextButton);
 
-        // Page 2 should now show 2024-03-01 activity and not 2024-03-07
+        // Page 2 should now show 2024-03-01 activity and not 2024-03-15
         await waitFor(() => {
-            expect(screen.getByText(/Menampilkan/i)).toHaveTextContent('Menampilkan 6 - 7 dari 7 hari (7 kegiatan)');
+            expect(screen.getByText(/Menampilkan/i)).toHaveTextContent('Menampilkan 11 - 15 dari 15 hari (15 kegiatan)');
             expect(screen.getAllByText('Kegiatan hari ke-1').length).toBeGreaterThan(0);
-            expect(screen.queryByText('Kegiatan hari ke-7')).not.toBeInTheDocument();
+            expect(screen.queryByText('Kegiatan hari ke-15')).not.toBeInTheDocument();
             expect(prevButton).not.toBeDisabled();
             expect(nextButton).toBeDisabled();
         });
@@ -427,21 +427,59 @@ describe('ActivitiesClient', () => {
         // Click Previous Page
         await user.click(prevButton);
         await waitFor(() => {
-            expect(screen.getByText(/Menampilkan/i)).toHaveTextContent('Menampilkan 1 - 5 dari 7 hari (7 kegiatan)');
-            expect(screen.getAllByText('Kegiatan hari ke-7').length).toBeGreaterThan(0);
+            expect(screen.getByText(/Menampilkan/i)).toHaveTextContent('Menampilkan 1 - 10 dari 15 hari (15 kegiatan)');
+            expect(screen.getAllByText('Kegiatan hari ke-15').length).toBeGreaterThan(0);
             expect(prevButton).toBeDisabled();
         });
     });
 
-    it('should reset to page 1 when search query changes', async () => {
+    it('should allow changing page size to 10, 31, and 100', async () => {
         const user = userEvent.setup();
-        const multiDateActivities = Array.from({ length: 7 }, (_, i) => ({
+        const multiDateActivities = Array.from({ length: 15 }, (_, i) => ({
             id: `act-${i + 1}`,
             user_id: 'user-1',
             school_id: 'school-1',
             category_id: '1',
             description: `Kegiatan hari ke-${i + 1}`,
-            activity_date: `2024-03-0${i + 1}`,
+            activity_date: `2024-03-${String(i + 1).padStart(2, '0')}`,
+            category: { name: 'KBM', rhk_label: 'Proses Pembelajaran', is_teaching: true },
+            teaching_hours: 2,
+            classes: [],
+            basis: null,
+            evidence_link: null,
+        }));
+
+        render(<ActivitiesClient initialActivities={multiDateActivities} />);
+
+        const pageSizeSelect = screen.getByLabelText('Pilih jumlah data per halaman');
+        expect(pageSizeSelect).toHaveValue('10');
+
+        // Select 31 items per page
+        await user.selectOptions(pageSizeSelect, '31');
+
+        await waitFor(() => {
+            expect(screen.getByText(/Menampilkan/i)).toHaveTextContent('Menampilkan 1 - 15 dari 15 hari (15 kegiatan)');
+            // All activities from 1 to 15 should now be on page 1
+            expect(screen.getAllByText('Kegiatan hari ke-1').length).toBeGreaterThan(0);
+            expect(screen.getAllByText('Kegiatan hari ke-15').length).toBeGreaterThan(0);
+        });
+
+        // Select 100 items per page
+        await user.selectOptions(pageSizeSelect, '100');
+        await waitFor(() => {
+            expect(screen.getByText(/Menampilkan/i)).toHaveTextContent('Menampilkan 1 - 15 dari 15 hari (15 kegiatan)');
+        });
+    });
+
+    it('should reset to page 1 when search query changes', async () => {
+        const user = userEvent.setup();
+        const multiDateActivities = Array.from({ length: 15 }, (_, i) => ({
+            id: `act-${i + 1}`,
+            user_id: 'user-1',
+            school_id: 'school-1',
+            category_id: '1',
+            description: `Kegiatan hari ke-${i + 1}`,
+            activity_date: `2024-03-${String(i + 1).padStart(2, '0')}`,
             category: { name: 'KBM', rhk_label: 'Proses Pembelajaran', is_teaching: true },
             teaching_hours: 2,
             classes: [],
@@ -465,7 +503,7 @@ describe('ActivitiesClient', () => {
 
         // Should reset to page 1
         await waitFor(() => {
-            expect(screen.getAllByText('Kegiatan hari ke-7').length).toBeGreaterThan(0);
+            expect(screen.getAllByText('Kegiatan hari ke-15').length).toBeGreaterThan(0);
         });
     });
 });

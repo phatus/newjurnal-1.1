@@ -22,7 +22,7 @@ import { useRouter } from "next/navigation";
 import { toast } from 'sonner';
 import type { Activity } from "@/types";
 
-const DATES_PER_PAGE = 5;
+const PAGE_SIZE_OPTIONS = [10, 31, 100] as const;
 
 function getEvidenceUrl(url?: string | null) {
     if (!url) return null;
@@ -53,6 +53,7 @@ export default function ActivitiesClient({
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState<number>(10);
 
     const [selectedMonth, setSelectedMonth] = useState(currentMonth || new Date().getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState(currentYear || new Date().getFullYear());
@@ -149,11 +150,11 @@ export default function ActivitiesClient({
     const sortedDates = useMemo(() => Object.keys(groupedActivities).sort().reverse(), [groupedActivities]);
 
     // Pagination logic (pagination per tanggal)
-    const totalPages = Math.ceil(sortedDates.length / DATES_PER_PAGE);
+    const totalPages = Math.max(1, Math.ceil(sortedDates.length / pageSize));
     const paginatedDates = useMemo(() => {
-        const start = (currentPage - 1) * DATES_PER_PAGE;
-        return sortedDates.slice(start, start + DATES_PER_PAGE);
-    }, [sortedDates, currentPage]);
+        const start = (currentPage - 1) * pageSize;
+        return sortedDates.slice(start, start + pageSize);
+    }, [sortedDates, currentPage, pageSize]);
 
     // Pastikan currentPage tidak melebihi totalPages ketika data berubah
     useEffect(() => {
@@ -486,9 +487,30 @@ export default function ActivitiesClient({
 
                         {/* Pagination Bar */}
                         {sortedDates.length > 0 && (
-                            <div className="p-4 px-6 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
-                                <div className="text-xs font-bold text-slate-500">
-                                    Menampilkan <span className="text-slate-900 font-black">{((currentPage - 1) * DATES_PER_PAGE) + 1}</span> - <span className="text-slate-900 font-black">{Math.min(currentPage * DATES_PER_PAGE, sortedDates.length)}</span> dari <span className="text-slate-900 font-black">{sortedDates.length}</span> hari ({filteredActivities.length} kegiatan)
+                            <div className="p-4 px-6 border-t border-slate-100 bg-slate-50/50 flex flex-col md:flex-row items-center justify-between gap-4">
+                                <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-slate-500">
+                                    <div>
+                                        Menampilkan <span className="text-slate-900 font-black">{((currentPage - 1) * pageSize) + 1}</span> - <span className="text-slate-900 font-black">{Math.min(currentPage * pageSize, sortedDates.length)}</span> dari <span className="text-slate-900 font-black">{sortedDates.length}</span> hari ({filteredActivities.length} kegiatan)
+                                    </div>
+                                    <div className="flex items-center gap-2 pl-0 sm:pl-3 sm:border-l sm:border-slate-200">
+                                        <span>Tampilkan:</span>
+                                        <select
+                                            value={pageSize}
+                                            onChange={(e) => {
+                                                setPageSize(Number(e.target.value));
+                                                setCurrentPage(1);
+                                            }}
+                                            aria-label="Pilih jumlah data per halaman"
+                                            className="h-8 px-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:ring-0 cursor-pointer shadow-xs"
+                                        >
+                                            {PAGE_SIZE_OPTIONS.map((size) => (
+                                                <option key={size} value={size}>
+                                                    {size}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <span>data</span>
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <button
